@@ -1,10 +1,11 @@
 import { NavLink as RouterNavLink, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Package, ShoppingCart, BarChart3 } from 'lucide-react';
+import { LayoutDashboard, Package, ShoppingCart, BarChart3, ClipboardList } from 'lucide-react';
 
 const navItems = [
   { to: '/', icon: LayoutDashboard, label: 'Home' },
   { to: '/inventory', icon: Package, label: 'Stock' },
   { to: '/sales', icon: ShoppingCart, label: 'Sales' },
+  { to: '/orders', icon: ClipboardList, label: 'Orders' },
   { to: '/reports', icon: BarChart3, label: 'Reports' },
 ];
 
@@ -22,13 +23,13 @@ const BottomNav = () => {
             <RouterNavLink
               key={to}
               to={to}
-              className={`flex flex-col items-center justify-center gap-0.5 px-3 py-1.5 rounded-xl transition-all duration-200 min-w-[64px] ${
+              className={`flex flex-col items-center justify-center gap-0.5 px-2 py-1.5 rounded-xl transition-all duration-200 min-w-[56px] ${
                 isActive
                   ? 'text-primary'
                   : 'text-muted-foreground hover:text-foreground'
               }`}
             >
-              <div className={`p-1.5 rounded-xl transition-all duration-200 ${
+              <div className={`p-1 rounded-xl transition-all duration-200 ${
                 isActive ? 'bg-primary/10' : ''
               }`}>
                 <Icon className="h-5 w-5" strokeWidth={isActive ? 2.5 : 2} />

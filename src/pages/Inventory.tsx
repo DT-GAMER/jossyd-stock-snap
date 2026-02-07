@@ -1,23 +1,17 @@
 import { useState, useEffect } from 'react';
 import Layout from '@/components/Layout';
-import { productsApi, formatCurrency } from '@/lib/api';
-import { CATEGORIES, type Product, type ProductFormData, type ProductCategory } from '@/types';
-import { Plus, Search, Edit2, Trash2, X, Package } from 'lucide-react';
+import { productsApi, formatCurrency, getDiscountedPrice } from '@/lib/api';
+import { CATEGORIES, type Product, type ProductFormData, type ProductCategory, type ProductMedia, type ProductDiscount } from '@/types';
+import { Plus, Search, Edit2, Trash2, X, Package, Image, Film, Eye, EyeOff, Percent, Tag } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
-
-const emptyForm: ProductFormData = {
-  name: '',
-  category: 'clothes',
-  costPrice: 0,
-  sellingPrice: 0,
-  quantity: 0,
-};
+import ProductFormDialog from '@/components/inventory/ProductFormDialog';
 
 const Inventory = () => {
   const [products, setProducts] = useState<Product[]>([]);
@@ -28,7 +22,6 @@ const Inventory = () => {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [deletingProduct, setDeletingProduct] = useState<Product | null>(null);
-  const [form, setForm] = useState<ProductFormData>(emptyForm);
   const [submitting, setSubmitting] = useState(false);
   const { toast } = useToast();
 
@@ -55,19 +48,11 @@ const Inventory = () => {
 
   const openAddDialog = () => {
     setEditingProduct(null);
-    setForm(emptyForm);
     setDialogOpen(true);
   };
 
   const openEditDialog = (product: Product) => {
     setEditingProduct(product);
-    setForm({
-      name: product.name,
-      category: product.category,
-      costPrice: product.costPrice,
-      sellingPrice: product.sellingPrice,
-      quantity: product.quantity,
-    });
     setDialogOpen(true);
   };
 
@@ -76,8 +61,7 @@ const Inventory = () => {
     setDeleteDialogOpen(true);
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (form: ProductFormData) => {
     setSubmitting(true);
     try {
       if (editingProduct) {
@@ -190,132 +174,75 @@ const Inventory = () => {
         </div>
       ) : (
         <div className="space-y-2">
-          {filtered.map((product, index) => (
-            <div
-              key={product.id}
-              className="bg-card rounded-xl p-3 shadow-card animate-fade-in"
-              style={{ animationDelay: `${index * 50}ms` }}
-            >
-              <div className="flex items-center gap-3">
-                <div className="text-2xl w-10 h-10 flex items-center justify-center rounded-lg bg-secondary">
-                  {getCategoryEmoji(product.category)}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-foreground truncate">{product.name}</p>
-                  <div className="flex items-center gap-2 mt-0.5">
-                    <span className="text-xs text-muted-foreground capitalize">{product.category}</span>
-                    <span className="text-xs text-muted-foreground">•</span>
-                    <span className={`text-xs font-semibold ${product.quantity <= 5 ? 'text-warning' : 'text-success'}`}>
-                      {product.quantity} in stock
-                    </span>
+          {filtered.map((product, index) => {
+            const discountedPrice = getDiscountedPrice(product);
+            return (
+              <div
+                key={product.id}
+                className="bg-card rounded-xl p-3 shadow-card animate-fade-in"
+                style={{ animationDelay: `${index * 50}ms` }}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="text-2xl w-10 h-10 flex items-center justify-center rounded-lg bg-secondary">
+                    {getCategoryEmoji(product.category)}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <p className="text-sm font-semibold text-foreground truncate">{product.name}</p>
+                      {product.visibleOnWebsite && (
+                        <Eye className="h-3 w-3 text-info shrink-0" />
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <span className="text-xs text-muted-foreground capitalize">{product.category}</span>
+                      <span className="text-xs text-muted-foreground">•</span>
+                      <span className={`text-xs font-semibold ${product.quantity <= 5 ? 'text-warning' : 'text-success'}`}>
+                        {product.quantity} in stock
+                      </span>
+                      {product.media.length > 0 && (
+                        <>
+                          <span className="text-xs text-muted-foreground">•</span>
+                          <span className="text-xs text-muted-foreground">
+                            {product.media.length} media
+                          </span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-bold text-foreground">{formatCurrency(product.sellingPrice)}</p>
+                    {discountedPrice !== null && (
+                      <p className="text-xs font-semibold text-success">
+                        Web: {formatCurrency(discountedPrice)}
+                      </p>
+                    )}
+                    {discountedPrice === null && (
+                      <p className="text-xs text-muted-foreground">Cost: {formatCurrency(product.costPrice)}</p>
+                    )}
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <button onClick={() => openEditDialog(product)} className="p-1.5 rounded-lg hover:bg-secondary transition-colors">
+                      <Edit2 className="h-3.5 w-3.5 text-muted-foreground" />
+                    </button>
+                    <button onClick={() => openDeleteDialog(product)} className="p-1.5 rounded-lg hover:bg-destructive/10 transition-colors">
+                      <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                    </button>
                   </div>
                 </div>
-                <div className="text-right">
-                  <p className="text-sm font-bold text-foreground">{formatCurrency(product.sellingPrice)}</p>
-                  <p className="text-xs text-muted-foreground">Cost: {formatCurrency(product.costPrice)}</p>
-                </div>
-                <div className="flex flex-col gap-1">
-                  <button onClick={() => openEditDialog(product)} className="p-1.5 rounded-lg hover:bg-secondary transition-colors">
-                    <Edit2 className="h-3.5 w-3.5 text-muted-foreground" />
-                  </button>
-                  <button onClick={() => openDeleteDialog(product)} className="p-1.5 rounded-lg hover:bg-destructive/10 transition-colors">
-                    <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                  </button>
-                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
       {/* Add/Edit Dialog */}
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-sm mx-auto rounded-2xl">
-          <DialogHeader>
-            <DialogTitle>{editingProduct ? 'Edit Product' : 'Add Product'}</DialogTitle>
-          </DialogHeader>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label>Product Name</Label>
-              <Input
-                value={form.name}
-                onChange={e => setForm({ ...form, name: e.target.value })}
-                placeholder="e.g. Ankara Dress"
-                required
-                className="rounded-xl"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Category</Label>
-              <Select value={form.category} onValueChange={v => setForm({ ...form, category: v as ProductCategory })}>
-                <SelectTrigger className="rounded-xl">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {CATEGORIES.map(cat => (
-                    <SelectItem key={cat.value} value={cat.value}>
-                      {cat.icon} {cat.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label>Cost Price (₦)</Label>
-                <Input
-                  type="number"
-                  value={form.costPrice || ''}
-                  onChange={e => setForm({ ...form, costPrice: Number(e.target.value) })}
-                  placeholder="0"
-                  required
-                  min={0}
-                  className="rounded-xl"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Selling Price (₦)</Label>
-                <Input
-                  type="number"
-                  value={form.sellingPrice || ''}
-                  onChange={e => setForm({ ...form, sellingPrice: Number(e.target.value) })}
-                  placeholder="0"
-                  required
-                  min={0}
-                  className="rounded-xl"
-                />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label>Quantity</Label>
-              <Input
-                type="number"
-                value={form.quantity || ''}
-                onChange={e => setForm({ ...form, quantity: Number(e.target.value) })}
-                placeholder="0"
-                required
-                min={0}
-                className="rounded-xl"
-              />
-            </div>
-            {form.sellingPrice > 0 && form.costPrice > 0 && (
-              <div className="bg-success-light rounded-xl p-3 text-center">
-                <p className="text-xs text-muted-foreground">Profit per unit</p>
-                <p className="text-lg font-bold text-success">
-                  {formatCurrency(form.sellingPrice - form.costPrice)}
-                </p>
-              </div>
-            )}
-            <Button
-              type="submit"
-              disabled={submitting}
-              className="w-full h-12 rounded-xl gradient-gold text-accent-foreground font-semibold hover:opacity-90"
-            >
-              {submitting ? 'Saving...' : editingProduct ? 'Update Product' : 'Add Product'}
-            </Button>
-          </form>
-        </DialogContent>
-      </Dialog>
+      <ProductFormDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        editingProduct={editingProduct}
+        submitting={submitting}
+        onSubmit={handleSubmit}
+      />
 
       {/* Delete Confirmation */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>

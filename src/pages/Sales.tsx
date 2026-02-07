@@ -2,9 +2,10 @@ import { useState, useEffect } from 'react';
 import Layout from '@/components/Layout';
 import { productsApi, salesApi, formatCurrency } from '@/lib/api';
 import type { Product, PaymentMethod } from '@/types';
-import { ShoppingCart, Check, Banknote, ArrowRightLeft, Minus, Plus, Search, X } from 'lucide-react';
+import { ShoppingCart, Check, Banknote, ArrowRightLeft, Minus, Plus, Search, X, Edit3 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 
 const Sales = () => {
@@ -13,6 +14,7 @@ const Sales = () => {
   const [search, setSearch] = useState('');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [quantity, setQuantity] = useState(1);
+  const [unitPrice, setUnitPrice] = useState(0);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -37,6 +39,12 @@ const Sales = () => {
     p.name.toLowerCase().includes(search.toLowerCase())
   );
 
+  const selectProduct = (product: Product) => {
+    setSelectedProduct(product);
+    setUnitPrice(product.sellingPrice);
+    setQuantity(1);
+  };
+
   const handleSubmitSale = async () => {
     if (!selectedProduct) return;
     setSubmitting(true);
@@ -45,12 +53,14 @@ const Sales = () => {
         productId: selectedProduct.id,
         quantity,
         paymentMethod,
+        unitPrice,
       });
       setSuccess(true);
       setTimeout(() => {
         setSuccess(false);
         setSelectedProduct(null);
         setQuantity(1);
+        setUnitPrice(0);
         setPaymentMethod('cash');
         loadProducts();
       }, 2000);
@@ -114,7 +124,7 @@ const Sales = () => {
             {filtered.map((product, index) => (
               <button
                 key={product.id}
-                onClick={() => setSelectedProduct(product)}
+                onClick={() => selectProduct(product)}
                 className="w-full bg-card rounded-xl p-4 shadow-card text-left hover:shadow-card-hover transition-shadow animate-fade-in"
                 style={{ animationDelay: `${index * 40}ms` }}
               >
@@ -136,7 +146,8 @@ const Sales = () => {
   }
 
   // Sale Form
-  const total = selectedProduct.sellingPrice * quantity;
+  const total = unitPrice * quantity;
+  const profit = (unitPrice - selectedProduct.costPrice) * quantity;
 
   return (
     <Layout title="New Sale" subtitle={selectedProduct.name}>
@@ -153,7 +164,38 @@ const Sales = () => {
             </button>
           </div>
           <p className="text-sm text-muted-foreground">
-            {formatCurrency(selectedProduct.sellingPrice)} each • {selectedProduct.quantity} available
+            Base price: {formatCurrency(selectedProduct.sellingPrice)} • {selectedProduct.quantity} available
+          </p>
+        </div>
+
+        {/* Editable Selling Price */}
+        <div>
+          <Label className="text-sm font-semibold text-foreground mb-2 block flex items-center gap-1.5">
+            <Edit3 className="h-3.5 w-3.5" />
+            Selling Price (₦)
+          </Label>
+          <Input
+            type="number"
+            value={unitPrice || ''}
+            onChange={e => setUnitPrice(Number(e.target.value))}
+            min={0}
+            className="h-12 rounded-xl text-lg font-semibold"
+          />
+          {unitPrice !== selectedProduct.sellingPrice && (
+            <div className="flex items-center justify-between mt-1.5">
+              <p className="text-xs text-muted-foreground">
+                Base: {formatCurrency(selectedProduct.sellingPrice)}
+              </p>
+              <button
+                onClick={() => setUnitPrice(selectedProduct.sellingPrice)}
+                className="text-xs text-info font-medium hover:underline"
+              >
+                Reset to base
+              </button>
+            </div>
+          )}
+          <p className="text-xs text-muted-foreground mt-1">
+            Cost price: {formatCurrency(selectedProduct.costPrice)} (fixed)
           </p>
         </div>
 
@@ -217,13 +259,19 @@ const Sales = () => {
 
         {/* Total & Submit */}
         <div className="bg-card rounded-2xl p-4 shadow-card">
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center justify-between mb-1">
             <span className="text-muted-foreground font-medium">Total Amount</span>
             <span className="text-2xl font-bold text-foreground">{formatCurrency(total)}</span>
           </div>
+          <div className="flex items-center justify-between mb-4">
+            <span className="text-xs text-muted-foreground">Estimated Profit</span>
+            <span className={`text-sm font-semibold ${profit >= 0 ? 'text-success' : 'text-destructive'}`}>
+              {formatCurrency(profit)}
+            </span>
+          </div>
           <Button
             onClick={handleSubmitSale}
-            disabled={submitting}
+            disabled={submitting || unitPrice <= 0}
             className="w-full h-14 rounded-xl gradient-gold text-accent-foreground font-bold text-base hover:opacity-90"
           >
             {submitting ? (

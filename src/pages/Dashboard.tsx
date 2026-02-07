@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import Layout from '@/components/Layout';
 import { dashboardApi, authApi, formatCurrency } from '@/lib/api';
 import type { DashboardStats } from '@/types';
-import { TrendingUp, DollarSign, ShoppingBag, AlertTriangle, LogOut, Package } from 'lucide-react';
+import { TrendingUp, DollarSign, ShoppingBag, AlertTriangle, LogOut, Package, ClipboardList } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 
@@ -11,14 +11,19 @@ const StatCard = ({
   icon: Icon, 
   label, 
   value, 
-  iconBg 
+  iconBg,
+  onClick,
 }: { 
   icon: any; 
   label: string; 
   value: string; 
   iconBg: string;
+  onClick?: () => void;
 }) => (
-  <div className="bg-card rounded-2xl p-4 shadow-card animate-scale-in">
+  <div 
+    className={`bg-card rounded-2xl p-4 shadow-card animate-scale-in ${onClick ? 'cursor-pointer hover:shadow-card-hover transition-shadow' : ''}`}
+    onClick={onClick}
+  >
     <div className="flex items-center gap-3">
       <div className={`p-2.5 rounded-xl ${iconBg}`}>
         <Icon className="h-5 w-5" />
@@ -125,6 +130,25 @@ const Dashboard = () => {
           />
         </div>
       </div>
+
+      {/* Pending Website Orders */}
+      {(stats?.pendingOrders ?? 0) > 0 && (
+        <div
+          className="bg-card rounded-2xl p-4 shadow-card mb-6 animate-fade-in cursor-pointer hover:shadow-card-hover transition-shadow"
+          onClick={() => navigate('/orders')}
+        >
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 rounded-xl bg-warning-light">
+              <ClipboardList className="h-5 w-5 text-warning" />
+            </div>
+            <div className="flex-1">
+              <p className="text-xs text-muted-foreground font-medium">Pending Website Orders</p>
+              <p className="text-lg font-bold text-foreground">{stats?.pendingOrders}</p>
+            </div>
+            <span className="text-xs text-info font-semibold">View →</span>
+          </div>
+        </div>
+      )}
 
       {/* Low Stock Alert */}
       {stats?.lowStockItems && stats.lowStockItems.length > 0 && (

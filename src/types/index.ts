@@ -1,3 +1,14 @@
+export interface ProductMedia {
+  id: string;
+  url: string;
+  type: 'image' | 'video';
+}
+
+export interface ProductDiscount {
+  type: 'percentage' | 'fixed';
+  value: number;
+}
+
 export interface Product {
   id: string;
   name: string;
@@ -5,6 +16,9 @@ export interface Product {
   costPrice: number;
   sellingPrice: number;
   quantity: number;
+  media: ProductMedia[];
+  visibleOnWebsite: boolean;
+  discount?: ProductDiscount;
   createdAt: string;
   updatedAt: string;
 }
@@ -41,11 +55,34 @@ export interface Sale {
   createdAt: string;
 }
 
+export type OrderStatus = 'pending' | 'paid' | 'completed' | 'cancelled';
+
+export interface OrderItem {
+  productId: string;
+  productName: string;
+  quantity: number;
+  unitPrice: number;
+}
+
+export interface Order {
+  id: string;
+  orderNumber: string;
+  customerName: string;
+  customerPhone: string;
+  items: OrderItem[];
+  totalAmount: number;
+  source: 'website';
+  status: OrderStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface DashboardStats {
   todaySales: number;
   todayProfit: number;
   todayTransactions: number;
   lowStockItems: Product[];
+  pendingOrders: number;
 }
 
 export interface ReportSummary {
@@ -77,10 +114,14 @@ export interface ProductFormData {
   costPrice: number;
   sellingPrice: number;
   quantity: number;
+  media: ProductMedia[];
+  visibleOnWebsite: boolean;
+  discount?: ProductDiscount;
 }
 
 export interface SaleFormData {
   productId: string;
   quantity: number;
   paymentMethod: PaymentMethod;
+  unitPrice: number;
 }

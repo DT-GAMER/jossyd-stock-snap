@@ -12,6 +12,7 @@ export interface ProductDiscount {
 export interface Product {
   id: string;
   name: string;
+  description: string;
   category: ProductCategory;
   costPrice: number;
   sellingPrice: number;
@@ -85,22 +86,13 @@ export interface DashboardStats {
   pendingOrders: number;
 }
 
-export interface ReportSummary {
-  period: string;
-  totalSales: number;
-  totalProfit: number;
-  totalTransactions: number;
-  salesByCategory: { category: string; amount: number }[];
-  salesByPayment: { method: string; amount: number }[];
-}
-
 export interface LoginCredentials {
   email: string;
   password: string;
 }
 
 export interface AuthResponse {
-  token: string;
+  accessToken: string;
   user: {
     name: string;
     email: string;
@@ -110,6 +102,7 @@ export interface AuthResponse {
 
 export interface ProductFormData {
   name: string;
+  description: string;
   category: ProductCategory;
   costPrice: number;
   sellingPrice: number;
@@ -124,4 +117,18 @@ export interface SaleFormData {
   quantity: number;
   paymentMethod: PaymentMethod;
   unitPrice: number;
+}
+
+export type Period = 'daily' | 'weekly' | 'monthly';
+export type ReportPeriod = Period | 'custom';
+
+export interface ReportSummary {
+  period: ReportPeriod;
+  totalSales: number;
+  totalProfit: number;
+  totalTransactions: number;
+  salesByCategory: Array<{ category: string; amount: number }>;
+  salesByPayment: Array<{ method: string; amount: number }>;
+  startDate?: string;
+  endDate?: string;
 }

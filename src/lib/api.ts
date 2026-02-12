@@ -12,7 +12,7 @@ import type {
 } from '@/types';
 
 // Base API URL - replace with your actual API endpoint
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://magic.myradture.com/api/v1";
 
 // Token management
 let authToken: string | null = localStorage.getItem('auth_token');
@@ -55,23 +55,32 @@ const apiRequest = async <T>(
     throw new Error(error.message || 'An error occurred');
   }
 
-  return response.json();
+  const result = await response.json();
+
+  // Check for the API success flag and unwrap the data
+  if (result.success !== undefined && !result.success) {
+    throw new Error(result.message || 'API request failed');
+  }
+
+  // Automatically return the data object if it exists in the response
+  // Otherwise return the full response
+  return result.data !== undefined ? result.data as T : result as T;
 };
 
 // ============================================
 // MOCK DATA (Remove when connecting to real API)
 // ============================================
 const mockProducts: Product[] = [
-  { id: '1', name: 'Ankara Midi Dress', category: 'clothes', costPrice: 8000, sellingPrice: 15000, quantity: 12, media: [], visibleOnWebsite: true, discount: { type: 'percentage', value: 10 }, createdAt: '2026-02-01', updatedAt: '2026-02-05' },
-  { id: '2', name: 'Designer Stilettos', category: 'shoes', costPrice: 12000, sellingPrice: 22000, quantity: 5, media: [], visibleOnWebsite: true, createdAt: '2026-02-01', updatedAt: '2026-02-04' },
-  { id: '3', name: 'Tom Ford Noir', category: 'perfumes', costPrice: 25000, sellingPrice: 45000, quantity: 3, media: [], visibleOnWebsite: false, createdAt: '2026-02-02', updatedAt: '2026-02-03' },
-  { id: '4', name: 'Shea Butter Cream', category: 'creams', costPrice: 2000, sellingPrice: 4500, quantity: 20, media: [], visibleOnWebsite: true, discount: { type: 'fixed', value: 500 }, createdAt: '2026-02-01', updatedAt: '2026-02-05' },
-  { id: '5', name: 'Gold Wrist Watch', category: 'watches', costPrice: 15000, sellingPrice: 28000, quantity: 2, media: [], visibleOnWebsite: true, createdAt: '2026-02-03', updatedAt: '2026-02-05' },
-  { id: '6', name: 'Pearl Necklace Set', category: 'jewelry', costPrice: 5000, sellingPrice: 12000, quantity: 8, media: [], visibleOnWebsite: true, createdAt: '2026-02-01', updatedAt: '2026-02-04' },
-  { id: '7', name: 'Lace Blouse', category: 'clothes', costPrice: 5000, sellingPrice: 9500, quantity: 15, media: [], visibleOnWebsite: false, createdAt: '2026-02-02', updatedAt: '2026-02-05' },
-  { id: '8', name: 'Sneakers Classic', category: 'shoes', costPrice: 8000, sellingPrice: 16000, quantity: 4, media: [], visibleOnWebsite: true, createdAt: '2026-02-01', updatedAt: '2026-02-05' },
-  { id: '9', name: 'Body Mist Spray', category: 'perfumes', costPrice: 3500, sellingPrice: 7000, quantity: 10, media: [], visibleOnWebsite: true, createdAt: '2026-02-03', updatedAt: '2026-02-05' },
-  { id: '10', name: 'Silver Ring Set', category: 'jewelry', costPrice: 3000, sellingPrice: 7500, quantity: 6, media: [], visibleOnWebsite: true, createdAt: '2026-02-02', updatedAt: '2026-02-04' },
+  { id: '1', name: 'Ankara Midi Dress', description: 'Beautiful traditional Ankara midi dress', category: 'clothes', costPrice: 8000, sellingPrice: 15000, quantity: 12, media: [], visibleOnWebsite: true, discount: { type: 'percentage', value: 10 }, createdAt: '2026-02-01', updatedAt: '2026-02-05' },
+  { id: '2', name: 'Designer Stilettos', description: 'Elegant designer stiletto heels', category: 'shoes', costPrice: 12000, sellingPrice: 22000, quantity: 5, media: [], visibleOnWebsite: true, createdAt: '2026-02-01', updatedAt: '2026-02-04' },
+  { id: '3', name: 'Tom Ford Noir', description: 'Premium luxury perfume by Tom Ford', category: 'perfumes', costPrice: 25000, sellingPrice: 45000, quantity: 3, media: [], visibleOnWebsite: false, createdAt: '2026-02-02', updatedAt: '2026-02-03' },
+  { id: '4', name: 'Shea Butter Cream', description: 'Natural shea butter moisturizing cream', category: 'creams', costPrice: 2000, sellingPrice: 4500, quantity: 20, media: [], visibleOnWebsite: true, discount: { type: 'fixed', value: 500 }, createdAt: '2026-02-01', updatedAt: '2026-02-05' },
+  { id: '5', name: 'Gold Wrist Watch', description: 'Elegant gold-plated wrist watch', category: 'watches', costPrice: 15000, sellingPrice: 28000, quantity: 2, media: [], visibleOnWebsite: true, createdAt: '2026-02-03', updatedAt: '2026-02-05' },
+  { id: '6', name: 'Pearl Necklace Set', description: 'Stunning pearl necklace jewelry set', category: 'jewelry', costPrice: 5000, sellingPrice: 12000, quantity: 8, media: [], visibleOnWebsite: true, createdAt: '2026-02-01', updatedAt: '2026-02-04' },
+  { id: '7', name: 'Lace Blouse', description: 'Elegant lace blouse for women', category: 'clothes', costPrice: 5000, sellingPrice: 9500, quantity: 15, media: [], visibleOnWebsite: false, createdAt: '2026-02-02', updatedAt: '2026-02-05' },
+  { id: '8', name: 'Sneakers Classic', description: 'Classic comfortable sneakers', category: 'shoes', costPrice: 8000, sellingPrice: 16000, quantity: 4, media: [], visibleOnWebsite: true, createdAt: '2026-02-01', updatedAt: '2026-02-05' },
+  { id: '9', name: 'Body Mist Spray', description: 'Refreshing fragrant body mist spray', category: 'perfumes', costPrice: 3500, sellingPrice: 7000, quantity: 10, media: [], visibleOnWebsite: true, createdAt: '2026-02-03', updatedAt: '2026-02-05' },
+  { id: '10', name: 'Silver Ring Set', description: 'Beautiful silver ring jewelry set', category: 'jewelry', costPrice: 3000, sellingPrice: 7500, quantity: 6, media: [], visibleOnWebsite: true, createdAt: '2026-02-02', updatedAt: '2026-02-04' },
 ];
 
 const mockSales: Sale[] = [
@@ -111,7 +120,7 @@ const mockOrders: Order[] = [
 let nextProductId = 11;
 let nextSaleId = 6;
 
-const USE_MOCK = true; // Set to false when connecting to real API
+const USE_MOCK = false; // Set to false when connecting to real API
 // ============================================
 
 // Auth API
@@ -121,10 +130,10 @@ export const authApi = {
       await new Promise(r => setTimeout(r, 800));
       if (credentials.email === 'admin@jossydiva.com' && credentials.password === 'admin123') {
         const response: AuthResponse = {
-          token: 'mock-jwt-token-jossy-diva',
+          accessToken: 'mock-jwt-token-jossy-diva',
           user: { name: 'Jossy', email: 'admin@jossydiva.com', businessName: 'Jossy-Diva Collections' },
         };
-        setAuthToken(response.token);
+        setAuthToken(response.accessToken);
         localStorage.setItem('user', JSON.stringify(response.user));
         return response;
       }
@@ -134,7 +143,7 @@ export const authApi = {
       method: 'POST',
       body: JSON.stringify(credentials),
     });
-    setAuthToken(response.token);
+    setAuthToken(response.accessToken);
     localStorage.setItem('user', JSON.stringify(response.user));
     return response;
   },
@@ -173,36 +182,77 @@ export const productsApi = {
   },
 
   create: async (data: ProductFormData): Promise<Product> => {
-    if (USE_MOCK) {
-      await new Promise(r => setTimeout(r, 400));
-      const product: Product = {
-        id: String(nextProductId++),
-        ...data,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
-      mockProducts.push(product);
-      return product;
-    }
-    return apiRequest<Product>('/products', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
-  },
+  if (USE_MOCK) {
+    await new Promise(r => setTimeout(r, 400));
+    const product: Product = {
+      id: String(nextProductId++),
+      ...data,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    mockProducts.push(product);
+    return product;
+  }
+  
+  console.log('Form data received:', data); // Debug
+  
+  const apiData: any = {
+    name: data.name,
+    description: data.description || '',
+    category: data.category.toUpperCase(),
+    costPrice: data.costPrice,
+    sellingPrice: data.sellingPrice,
+    quantity: data.quantity,
+    visibleOnWebsite: data.visibleOnWebsite ?? false,
+  };
+  
+  if (data.discount && data.discount.type && data.discount.value !== undefined) {
+    apiData.discountType = data.discount.type.toUpperCase();
+    apiData.discountValue = data.discount.value;
+  } else {
+    apiData.discountType = null;
+    apiData.discountValue = null;
+  }
+  
+  console.log('Sending to API:', apiData); // Debug
+  
+  return apiRequest<Product>('/products', {
+    method: 'POST',
+    body: JSON.stringify(apiData),
+  });
+},
 
-  update: async (id: string, data: Partial<ProductFormData>): Promise<Product> => {
-    if (USE_MOCK) {
-      await new Promise(r => setTimeout(r, 400));
-      const index = mockProducts.findIndex(p => p.id === id);
-      if (index === -1) throw new Error('Product not found');
-      mockProducts[index] = { ...mockProducts[index], ...data, updatedAt: new Date().toISOString() };
-      return { ...mockProducts[index] };
-    }
-    return apiRequest<Product>(`/products/${id}`, {
-      method: 'PUT',
-      body: JSON.stringify(data),
-    });
-  },
+update: async (
+  id: string,
+  data: Partial<ProductFormData>,
+  existing: Product // 👈 pass current product
+): Promise<Product> => {
+
+  const apiData = {
+    name: (data.name ?? existing.name).trim(),
+    description: (data.description ?? existing.description).trim(),
+    category: (data.category ?? existing.category).toUpperCase(),
+    costPrice: Number(data.costPrice ?? existing.costPrice),
+    sellingPrice: Number(data.sellingPrice ?? existing.sellingPrice),
+    quantity: Number(data.quantity ?? existing.quantity),
+    visibleOnWebsite: data.visibleOnWebsite ?? existing.visibleOnWebsite,
+    discountType: 'NONE',
+    discountValue: 0,
+  };
+
+  if (data.discount && data.discount.value > 0) {
+    apiData.discountType = data.discount.type.toUpperCase();
+    apiData.discountValue = Number(data.discount.value);
+  } else if (existing.discount) {
+    apiData.discountType = existing.discount.type.toUpperCase();
+    apiData.discountValue = existing.discount.value;
+  }
+
+  return apiRequest<Product>(`/products/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(apiData),
+  });
+},
 
   delete: async (id: string): Promise<void> => {
     if (USE_MOCK) {
@@ -223,7 +273,7 @@ export const salesApi = {
       const product = mockProducts.find(p => p.id === data.productId);
       if (!product) throw new Error('Product not found');
       if (product.quantity < data.quantity) throw new Error('Insufficient stock');
-      
+
       const unitPrice = data.unitPrice;
       const sale: Sale = {
         id: `s${nextSaleId++}`,
@@ -237,7 +287,7 @@ export const salesApi = {
         paymentMethod: data.paymentMethod,
         createdAt: new Date().toISOString(),
       };
-      
+
       // Update stock
       product.quantity -= data.quantity;
       mockSales.push(sale);
@@ -293,7 +343,7 @@ export const ordersApi = {
       return { ...mockOrders[index] };
     }
     return apiRequest<Order>(`/orders/${id}/status`, {
-      method: 'PATCH',
+      method: 'PUT',
       body: JSON.stringify({ status }),
     });
   },
@@ -315,7 +365,7 @@ export const dashboardApi = {
       const today = new Date().toISOString().split('T')[0];
       const todaySales = mockSales.filter(s => s.createdAt.startsWith(today));
       const pendingOrders = mockOrders.filter(o => o.status === 'pending').length;
-      
+
       return {
         todaySales: todaySales.reduce((sum, s) => sum + s.totalAmount, 0),
         todayProfit: todaySales.reduce((sum, s) => sum + s.profit, 0),
@@ -324,11 +374,12 @@ export const dashboardApi = {
         pendingOrders,
       };
     }
-    return apiRequest<DashboardStats>('/dashboard/stats');
+    return apiRequest<DashboardStats>('/dashboard');
   },
 };
 
-// Reports API
+
+// Reports API - Fixed
 export const reportsApi = {
   getSummary: async (period: 'daily' | 'weekly' | 'monthly'): Promise<ReportSummary> => {
     if (USE_MOCK) {
@@ -343,7 +394,6 @@ export const reportsApi = {
         const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
         filteredSales = mockSales.filter(s => new Date(s.createdAt) >= weekAgo);
       }
-      // monthly = all mock data
 
       const salesByCategory: Record<string, number> = {};
       const salesByPayment: Record<string, number> = {};
@@ -364,10 +414,27 @@ export const reportsApi = {
         salesByPayment: Object.entries(salesByPayment).map(([method, amount]) => ({ method, amount })),
       };
     }
-    return apiRequest<ReportSummary>(`/reports/summary?period=${period}`);
-  },
-};
 
+    const endpoint = `/reports/${period}`;
+    return apiRequest<ReportSummary>(endpoint);
+  },
+  
+  getCustomReport: async (startDate: string, endDate: string): Promise<ReportSummary> => {
+    return apiRequest<ReportSummary>(`/reports/custom?startDate=${startDate}&endDate=${endDate}`);
+  },
+
+  exportReport: async (format: 'pdf'): Promise<Blob> => {
+    if (USE_MOCK) {
+      await new Promise(r => setTimeout(r, 500));
+      return new Blob(['Mock PDF content'], { type: 'application/pdf' });
+    }
+    const response = await fetch(`${API_BASE_URL}/reports/export/${format}`, {
+      headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
+    });
+    if (!response.ok) throw new Error('Failed to export report');
+    return response.blob();
+  }
+};
 // Currency formatter for Naira
 export const formatCurrency = (amount: number): string => {
   return new Intl.NumberFormat('en-NG', {

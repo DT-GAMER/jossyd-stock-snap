@@ -11,6 +11,7 @@ import { Switch } from '@/components/ui/switch';
 
 const emptyForm: ProductFormData = {
   name: '',
+  description: '',
   category: 'clothes',
   costPrice: 0,
   sellingPrice: 0,
@@ -36,6 +37,7 @@ const ProductFormDialog = ({ open, onOpenChange, editingProduct, submitting, onS
       if (editingProduct) {
         setForm({
           name: editingProduct.name,
+          description: editingProduct.description,
           category: editingProduct.category,
           costPrice: editingProduct.costPrice,
           sellingPrice: editingProduct.sellingPrice,
@@ -58,6 +60,7 @@ const ProductFormDialog = ({ open, onOpenChange, editingProduct, submitting, onS
     if (!hasDiscount) {
       delete submitData.discount;
     }
+    console.log(form)
     onSubmit(submitData);
   };
 
@@ -95,6 +98,17 @@ const ProductFormDialog = ({ open, onOpenChange, editingProduct, submitting, onS
               value={form.name}
               onChange={e => setForm({ ...form, name: e.target.value })}
               placeholder="e.g. Ankara Dress"
+              required
+              className="rounded-xl"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label>Description</Label>
+            <Input
+              value={form.description}
+              onChange={e => setForm({ ...form, description: e.target.value })}
+              placeholder="e.g. Size 32 plain cotton trouser pants"
               required
               className="rounded-xl"
             />
@@ -170,44 +184,50 @@ const ProductFormDialog = ({ open, onOpenChange, editingProduct, submitting, onS
           )}
 
           {/* Media Upload */}
-          <div className="space-y-2">
+            <div className="space-y-2">
             <Label className="flex items-center gap-1.5">
               <Image className="h-3.5 w-3.5" />
               Media (max 2)
             </Label>
             <div className="space-y-2">
               {form.media.map((m, i) => (
-                <div key={m.id} className="flex items-center gap-2 bg-secondary rounded-xl p-2">
-                  {m.type === 'image' ? (
-                    <Image className="h-4 w-4 text-info shrink-0" />
-                  ) : (
-                    <Film className="h-4 w-4 text-info shrink-0" />
-                  )}
-                  <Input
-                    value={m.url}
-                    onChange={e => updateMediaUrl(i, e.target.value)}
-                    placeholder={`${m.type === 'image' ? 'Image' : 'Video'} URL`}
-                    className="h-8 text-xs rounded-lg flex-1"
-                  />
-                  <button type="button" onClick={() => removeMedia(i)} className="p-1 text-muted-foreground hover:text-destructive">
-                    <X className="h-3.5 w-3.5" />
-                  </button>
-                </div>
+              <div key={m.id} className="flex items-center gap-2 bg-secondary rounded-xl p-2">
+                {m.type === 'image' ? (
+                <Image className="h-4 w-4 text-info shrink-0" />
+                ) : (
+                <Film className="h-4 w-4 text-info shrink-0" />
+                )}
+                <input
+                type="file"
+                accept={m.type === 'image' ? 'image/*' : 'video/*'}
+                onChange={e => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                  const url = URL.createObjectURL(file);
+                  updateMediaUrl(i, url);
+                  }
+                }}
+                className="h-8 text-xs flex-1 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90"
+                />
+                <button type="button" onClick={() => removeMedia(i)} className="p-1 text-muted-foreground hover:text-destructive">
+                <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
               ))}
               {form.media.length < 2 && (
-                <div className="flex gap-2">
-                  <Button type="button" variant="outline" size="sm" className="rounded-lg text-xs flex-1" onClick={() => addMediaSlot('image')}>
-                    <Image className="h-3 w-3 mr-1" />
-                    Add Image
-                  </Button>
-                  <Button type="button" variant="outline" size="sm" className="rounded-lg text-xs flex-1" onClick={() => addMediaSlot('video')}>
-                    <Film className="h-3 w-3 mr-1" />
-                    Add Video
-                  </Button>
-                </div>
+              <div className="flex gap-2">
+                <Button type="button" variant="outline" size="sm" className="rounded-lg text-xs flex-1" onClick={() => addMediaSlot('image')}>
+                <Image className="h-3 w-3 mr-1" />
+                Add Image
+                </Button>
+                <Button type="button" variant="outline" size="sm" className="rounded-lg text-xs flex-1" onClick={() => addMediaSlot('video')}>
+                <Film className="h-3 w-3 mr-1" />
+                Add Video
+                </Button>
+              </div>
               )}
             </div>
-          </div>
+            </div>
 
           {/* Website Visibility */}
           <div className="flex items-center justify-between bg-secondary rounded-xl p-3">

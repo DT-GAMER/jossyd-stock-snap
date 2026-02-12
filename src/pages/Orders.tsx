@@ -7,8 +7,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import type { LucideIcon } from 'lucide-react';
 
-const statusConfig: Record<OrderStatus, { label: string; className: string; icon: any }> = {
+const statusConfig: Record<OrderStatus, { label: string; className: string; icon: LucideIcon }> = {
   pending: { label: 'Pending', className: 'bg-warning-light text-warning-foreground', icon: Clock },
   paid: { label: 'Paid', className: 'bg-info-light text-info', icon: CreditCard },
   completed: { label: 'Completed', className: 'bg-success-light text-success', icon: CheckCircle2 },
@@ -101,11 +102,10 @@ const Orders = () => {
             <button
               key={f.value}
               onClick={() => setStatusFilter(f.value)}
-              className={`px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all ${
-                statusFilter === f.value
+              className={`px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all ${statusFilter === f.value
                   ? 'bg-primary text-primary-foreground'
                   : 'bg-secondary text-secondary-foreground'
-              }`}
+                }`}
             >
               {f.label}
             </button>
@@ -136,7 +136,10 @@ const Orders = () => {
       ) : (
         <div className="space-y-2">
           {filtered.map((order, index) => {
-            const config = statusConfig[order.status];
+            const config =
+              statusConfig[order.status as OrderStatus] ??
+              statusConfig.pending;
+
             const StatusIcon = config.icon;
             return (
               <button

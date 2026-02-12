@@ -1,12 +1,10 @@
 import { useState, useEffect } from 'react';
 import Layout from '@/components/Layout';
 import { reportsApi, salesApi, formatCurrency } from '@/lib/api';
-import type { ReportSummary, Sale } from '@/types';
+import type { ReportSummary, Sale, Period } from '@/types';
 import { BarChart3, TrendingUp, DollarSign, ShoppingBag, Clock } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { CATEGORIES } from '@/types';
-
-type Period = 'daily' | 'weekly' | 'monthly';
 
 const Reports = () => {
   const [period, setPeriod] = useState<Period>('daily');
@@ -29,7 +27,11 @@ const Reports = () => {
       const data = await reportsApi.getSummary(period);
       setReport(data);
     } catch (err: any) {
-      toast({ title: 'Error', description: err.message, variant: 'destructive' });
+      toast({ 
+        title: 'Error', 
+        description: err.message || 'Failed to load report', 
+        variant: 'destructive' 
+      });
     } finally {
       setLoading(false);
     }
@@ -45,7 +47,7 @@ const Reports = () => {
   };
 
   const getCategoryLabel = (cat: string) => {
-    const found = CATEGORIES.find(c => c.value === cat);
+    const found = CATEGORIES.find((c: { value: string; }) => c.value === cat);
     return found ? `${found.icon} ${found.label}` : cat;
   };
 
@@ -55,11 +57,15 @@ const Reports = () => {
     { value: 'monthly', label: 'This Month' },
   ];
 
+  // Safely access arrays with default empty arrays
+  const salesByCategory = report?.salesByCategory || [];
+  const salesByPayment = report?.salesByPayment || [];
+
   return (
     <Layout title="Reports" subtitle="Sales performance">
       {/* Period Tabs */}
       <div className="flex gap-2 mb-5">
-        {periods.map(p => (
+        {periods.map((p: { value: Period; label: string; }) => (
           <button
             key={p.value}
             onClick={() => setPeriod(p.value)}
@@ -122,19 +128,19 @@ const Reports = () => {
             </div>
           )}
 
-          {/* Sales by Category */}
-          {report.salesByCategory.length > 0 && (
+          {/* Sales by Category - FIXED: Added safety check */}
+          {salesByCategory.length > 0 && (
             <div className="bg-card rounded-2xl p-4 shadow-card">
               <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
                 <BarChart3 className="h-4 w-4 text-primary" />
                 Sales by Category
               </h3>
               <div className="space-y-3">
-                {report.salesByCategory
-                  .sort((a, b) => b.amount - a.amount)
-                  .map(item => {
-                    const maxAmount = Math.max(...report.salesByCategory.map(i => i.amount));
-                    const percentage = (item.amount / maxAmount) * 100;
+                {salesByCategory
+                  .sort((a: { amount: number; }, b: { amount: number; }) => b.amount - a.amount)
+                  .map((item: { amount: number; category: string; }) => {
+                    const maxAmount = Math.max(...salesByCategory.map((i: { amount: any; }) => i.amount));
+                    const percentage = maxAmount > 0 ? (item.amount / maxAmount) * 100 : 0;
                     return (
                       <div key={item.category}>
                         <div className="flex justify-between items-center mb-1">
@@ -158,12 +164,12 @@ const Reports = () => {
             </div>
           )}
 
-          {/* Sales by Payment */}
-          {report.salesByPayment.length > 0 && (
+          {/* Sales by Payment - FIXED: Added safety check */}
+          {salesByPayment.length > 0 && (
             <div className="bg-card rounded-2xl p-4 shadow-card">
               <h3 className="text-sm font-semibold text-foreground mb-3">Payment Methods</h3>
               <div className="grid grid-cols-2 gap-3">
-                {report.salesByPayment.map(item => (
+                {salesByPayment.map((item: { method: string; amount: number; }) => (
                   <div key={item.method} className="bg-secondary rounded-xl p-3 text-center">
                     <p className="text-xs text-muted-foreground capitalize font-medium">{item.method}</p>
                     <p className="text-sm font-bold text-foreground mt-1">{formatCurrency(item.amount)}</p>
@@ -181,7 +187,14 @@ const Reports = () => {
                 Recent Sales
               </h3>
               <div className="space-y-2">
-                {recentSales.map(sale => (
+                {recentSales.map((sale: { 
+                  id: any; 
+                  productName: any; 
+                  quantity: any; 
+                  paymentMethod: string; 
+                  totalAmount: number; 
+                  profit: number; 
+                }) => (
                   <div key={sale.id} className="bg-card rounded-xl p-3 shadow-card">
                     <div className="flex items-center justify-between">
                       <div>

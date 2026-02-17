@@ -617,17 +617,45 @@ export const dashboardApi = {
       await new Promise(r => setTimeout(r, 400));
       const today = new Date().toISOString().split('T')[0];
       const todaySales = mockSales.filter(s => s.createdAt.startsWith(today));
-      const pendingOrders = mockOrders.filter(o => o.status === 'pending').length;
-
+      
       return {
-        todaySales: todaySales.reduce((sum, s) => sum + s.totalAmount, 0),
-        todayProfit: todaySales.reduce((sum, s) => sum + s.profit, 0),
-        todayTransactions: todaySales.length,
-        lowStockItems: mockProducts.filter(p => p.quantity <= 5),
-        pendingOrders,
+        today: {
+          totalSalesAmount: todaySales.reduce((sum, s) => sum + s.totalAmount, 0),
+          totalProfit: todaySales.reduce((sum, s) => sum + s.profit, 0),
+          transactions: todaySales.length,
+        },
+        lowStockCount: mockProducts.filter(p => p.quantity <= 5).length,
+        lowStock: mockProducts.filter(p => p.quantity <= 5).map(p => ({
+          id: p.id,
+          name: p.name,
+          available: p.quantity,
+          category: p.category,
+          sellingPrice: p.sellingPrice,
+        })),
+        pendingOrdersCount: mockOrders.filter(o => o.status === 'pending').length,
+        pendingOrders: mockOrders.filter(o => o.status === 'pending').map(o => ({
+          id: o.id,
+          orderNumber: o.orderNumber,
+          customerName: o.customerName,
+          totalAmount: o.totalAmount,
+          createdAt: o.createdAt,
+        })),
       };
     }
-    return apiRequest<DashboardStats>('/dashboard');
+    
+    const response = await apiRequest<any>('/dashboard');
+    
+    // Handle response wrapper
+    const data = response.data || response;
+    
+    // Return the data as-is since it already matches the type
+    return {
+      today: data.today || { totalSalesAmount: 0, totalProfit: 0, transactions: 0 },
+      lowStockCount: data.lowStockCount || 0,
+      lowStock: data.lowStock || [],
+      pendingOrdersCount: data.pendingOrdersCount || 0,
+      pendingOrders: data.pendingOrders || [],
+    };
   },
 };
 

@@ -80,12 +80,49 @@ export interface Order {
   updatedAt: string;
 }
 
+// Replace your current DashboardStats with this
 export interface DashboardStats {
-  todaySales: number;
-  todayProfit: number;
-  todayTransactions: number;
-  lowStockItems: Product[];
-  pendingOrders: number;
+  today: {
+    totalSalesAmount: number;
+    totalProfit: number;
+    transactions: number;
+  };
+  lowStockCount: number;
+  lowStock: LowStockItem[];
+  pendingOrdersCount: number;
+  pendingOrders: PendingOrderItem[];
+}
+
+export interface LowStockItem {
+  id: string;
+  name: string;
+  available: number;
+  // Optional fields that might come from the backend
+  category?: string;
+  sellingPrice?: number;
+}
+
+export interface PendingOrderItem {
+  id: string;
+  orderNumber: string;
+  customerName: string;
+  totalAmount: number;
+  createdAt: string;
+}
+
+export interface Product {
+  id: string;
+  name: string;
+  description: string;
+  category: ProductCategory;
+  costPrice: number;
+  sellingPrice: number;
+  quantity: number;
+  media: ProductMedia[];
+  visibleOnWebsite: boolean;
+  discount?: ProductDiscount;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface LoginCredentials {

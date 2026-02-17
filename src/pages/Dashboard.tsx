@@ -3,9 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import Layout from '@/components/Layout';
 import { dashboardApi, authApi, formatCurrency } from '@/lib/api';
 import type { DashboardStats } from '@/types';
-import { TrendingUp, DollarSign, ShoppingBag, AlertTriangle, LogOut, Package, ClipboardList } from 'lucide-react';
+import { TrendingUp, DollarSign, ShoppingBag, AlertTriangle, LogOut, Package, ClipboardList, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 const StatCard = ({ 
   icon: Icon, 
@@ -39,6 +40,7 @@ const StatCard = ({
 const Dashboard = () => {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [showPendingOrders, setShowPendingOrders] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
   const user = authApi.getUser();
@@ -50,6 +52,7 @@ const Dashboard = () => {
   const loadStats = async () => {
     try {
       const data = await dashboardApi.getStats();
+      console.log('📊 Dashboard stats:', data);
       setStats(data);
     } catch (err: any) {
       toast({ title: 'Error', description: err.message, variant: 'destructive' });
@@ -107,35 +110,36 @@ const Dashboard = () => {
           <StatCard
             icon={DollarSign}
             label="Total Sales"
-            value={formatCurrency(stats?.todaySales || 0)}
+            value={formatCurrency(stats?.today.totalSalesAmount || 0)}
             iconBg="bg-success-light text-success"
           />
           <StatCard
             icon={TrendingUp}
             label="Profit"
-            value={formatCurrency(stats?.todayProfit || 0)}
+            value={formatCurrency(stats?.today.totalProfit || 0)}
             iconBg="bg-info-light text-info"
           />
           <StatCard
             icon={ShoppingBag}
             label="Transactions"
-            value={String(stats?.todayTransactions || 0)}
+            value={String(stats?.today.transactions || 0)}
             iconBg="bg-gold-light text-gold-foreground"
           />
           <StatCard
             icon={AlertTriangle}
             label="Low Stock"
-            value={String(stats?.lowStockItems?.length || 0)}
+            value={String(stats?.lowStockCount || 0)}
             iconBg="bg-warning-light text-warning"
+            onClick={() => document.getElementById('low-stock-section')?.scrollIntoView({ behavior: 'smooth' })}
           />
         </div>
       </div>
 
       {/* Pending Website Orders */}
-      {(stats?.pendingOrders ?? 0) > 0 && (
+      {(stats?.pendingOrdersCount ?? 0) > 0 && (
         <div
           className="bg-card rounded-2xl p-4 shadow-card mb-6 animate-fade-in cursor-pointer hover:shadow-card-hover transition-shadow"
-          onClick={() => navigate('/orders')}
+          onClick={() => setShowPendingOrders(true)}
         >
           <div className="flex items-center gap-3">
             <div className="p-2.5 rounded-xl bg-warning-light">
@@ -143,24 +147,24 @@ const Dashboard = () => {
             </div>
             <div className="flex-1">
               <p className="text-xs text-muted-foreground font-medium">Pending Website Orders</p>
-              <p className="text-lg font-bold text-foreground">{stats?.pendingOrders}</p>
+              <p className="text-lg font-bold text-foreground">{stats?.pendingOrdersCount}</p>
             </div>
-            <span className="text-xs text-info font-semibold">View →</span>
+            <span className="text-xs text-info font-semibold">View Details →</span>
           </div>
         </div>
       )}
 
       {/* Low Stock Alert */}
-      {stats?.lowStockItems && stats.lowStockItems.length > 0 && (
-        <div className="animate-fade-in">
+      {stats?.lowStock && stats.lowStock.length > 0 && (
+        <div id="low-stock-section" className="animate-fade-in mb-6">
           <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">
             ⚠️ Low Stock Alert
           </h2>
           <div className="space-y-2">
-            {stats.lowStockItems.map(item => (
+            {stats.lowStock.map(item => (
               <div
                 key={item.id}
-                className="bg-card rounded-xl p-3 shadow-card flex items-center justify-between"
+                className="bg-card rounded-xl p-3 shadow-card flex items-center justify-between hover:shadow-card-hover transition-shadow"
               >
                 <div className="flex items-center gap-3">
                   <div className="p-2 rounded-lg bg-warning-light">
@@ -168,12 +172,16 @@ const Dashboard = () => {
                   </div>
                   <div>
                     <p className="text-sm font-semibold text-foreground">{item.name}</p>
-                    <p className="text-xs text-muted-foreground capitalize">{item.category}</p>
+                    {item.category && (
+                      <p className="text-xs text-muted-foreground capitalize">{item.category}</p>
+                    )}
                   </div>
                 </div>
                 <div className="text-right">
-                  <p className="text-sm font-bold text-warning">{item.quantity} left</p>
-                  <p className="text-xs text-muted-foreground">{formatCurrency(item.sellingPrice)}</p>
+                  <p className="text-sm font-bold text-warning">{item.available} left</p>
+                  {item.sellingPrice && (
+                    <p className="text-xs text-muted-foreground">{formatCurrency(item.sellingPrice)}</p>
+                  )}
                 </div>
               </div>
             ))}
@@ -199,6 +207,47 @@ const Dashboard = () => {
           Add Stock
         </Button>
       </div>
+
+      {/* Pending Orders Detail Dialog */}
+      <Dialog open={showPendingOrders} onOpenChange={setShowPendingOrders}>
+        <DialogContent className="max-w-sm mx-auto rounded-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Pending Orders</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            {stats?.pendingOrders && stats.pendingOrders.length > 0 ? (
+              stats.pendingOrders.map((order) => (
+                <div
+                  key={order.id}
+                  className="bg-card border border-border rounded-xl p-3 cursor-pointer hover:bg-secondary transition-colors"
+                  onClick={() => {
+                    setShowPendingOrders(false);
+                    navigate('/orders');
+                  }}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-lg bg-warning-light">
+                      <Clock className="h-4 w-4 text-warning" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-sm font-semibold text-foreground">{order.orderNumber}</p>
+                      <p className="text-xs text-muted-foreground">{order.customerName}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-bold text-foreground">{formatCurrency(order.totalAmount)}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {new Date(order.createdAt).toLocaleDateString()}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <p className="text-center text-muted-foreground py-4">No pending orders</p>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </Layout>
   );
 };

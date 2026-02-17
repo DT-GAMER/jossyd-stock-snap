@@ -192,6 +192,25 @@ export interface SaleApiRequest {
 export type Period = 'daily' | 'weekly' | 'monthly';
 export type ReportPeriod = Period | 'custom';
 
+export interface CategoryRevenue {
+  revenue: number;
+  profit: number;
+}
+
+export interface SourceRevenue {
+  revenue: number;
+  profit: number;
+}
+
+export interface ReportData {
+  revenue: number;
+  profit: number;
+  profitMargin: number;
+  byCategory: Record<string, CategoryRevenue>;
+  bySource: Record<string, SourceRevenue>;
+  transactions: number;
+}
+
 export interface ReportSummary {
   period: ReportPeriod;
   totalSales: number;

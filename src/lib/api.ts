@@ -9,6 +9,7 @@ import type {
   SaleFormData,
   Order,
   OrderStatus,
+  ReportData,
 } from '@/types';
 
 // Base API URL - replace with your actual API endpoint
@@ -660,62 +661,138 @@ export const dashboardApi = {
 };
 
 
-// Reports API - Fixed
+// Reports API
 export const reportsApi = {
-  getSummary: async (period: 'daily' | 'weekly' | 'monthly'): Promise<ReportSummary> => {
+  // Get daily report
+  getDaily: async (): Promise<ReportData> => {
     if (USE_MOCK) {
       await new Promise(r => setTimeout(r, 500));
-      const now = new Date();
-      let filteredSales = mockSales;
-
-      if (period === 'daily') {
-        const today = now.toISOString().split('T')[0];
-        filteredSales = mockSales.filter(s => s.createdAt.startsWith(today));
-      } else if (period === 'weekly') {
-        const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-        filteredSales = mockSales.filter(s => new Date(s.createdAt) >= weekAgo);
-      }
-
-      const salesByCategory: Record<string, number> = {};
-      const salesByPayment: Record<string, number> = {};
-
-      filteredSales.forEach(sale => {
-        const product = mockProducts.find(p => p.id === sale.productId);
-        const cat = product?.category || 'other';
-        salesByCategory[cat] = (salesByCategory[cat] || 0) + sale.totalAmount;
-        salesByPayment[sale.paymentMethod] = (salesByPayment[sale.paymentMethod] || 0) + sale.totalAmount;
-      });
-
       return {
-        period,
-        totalSales: filteredSales.reduce((sum, s) => sum + s.totalAmount, 0),
-        totalProfit: filteredSales.reduce((sum, s) => sum + s.profit, 0),
-        totalTransactions: filteredSales.length,
-        salesByCategory: Object.entries(salesByCategory).map(([category, amount]) => ({ category, amount })),
-        salesByPayment: Object.entries(salesByPayment).map(([method, amount]) => ({ method, amount })),
+        revenue: 250000,
+        profit: 85000,
+        profitMargin: 34,
+        byCategory: {
+          SHOES: { revenue: 120000, profit: 40000 },
+          PERFUMES: { revenue: 130000, profit: 45000 },
+        },
+        bySource: {
+          WALK_IN: { revenue: 250000, profit: 85000 },
+          WEBSITE: { revenue: 250000, profit: 85000 },
+        },
+        transactions: 14,
       };
     }
-
-    const endpoint = `/reports/${period}`;
-    return apiRequest<ReportSummary>(endpoint);
+    const response = await apiRequest<any>('/reports/daily');
+    console.log('📊 Daily report:', response);
+    return response.data || response;
   },
 
-  getCustomReport: async (startDate: string, endDate: string): Promise<ReportSummary> => {
-    return apiRequest<ReportSummary>(`/reports/custom?startDate=${startDate}&endDate=${endDate}`);
+  // Get weekly report
+  getWeekly: async (): Promise<ReportData> => {
+    if (USE_MOCK) {
+      await new Promise(r => setTimeout(r, 500));
+      return {
+        revenue: 1250000,
+        profit: 425000,
+        profitMargin: 34,
+        byCategory: {
+          SHOES: { revenue: 600000, profit: 200000 },
+          PERFUMES: { revenue: 650000, profit: 225000 },
+        },
+        bySource: {
+          WALK_IN: { revenue: 1250000, profit: 425000 },
+          WEBSITE: { revenue: 1250000, profit: 425000 },
+        },
+        transactions: 68,
+      };
+    }
+    const response = await apiRequest<any>('/reports/weekly');
+    return response.data || response;
   },
 
-  exportReport: async (format: 'pdf'): Promise<Blob> => {
+  // Get monthly report
+  getMonthly: async (): Promise<ReportData> => {
+    if (USE_MOCK) {
+      await new Promise(r => setTimeout(r, 500));
+      return {
+        revenue: 5000000,
+        profit: 1700000,
+        profitMargin: 34,
+        byCategory: {
+          SHOES: { revenue: 2400000, profit: 800000 },
+          PERFUMES: { revenue: 2600000, profit: 900000 },
+        },
+        bySource: {
+          WALK_IN: { revenue: 5000000, profit: 1700000 },
+          WEBSITE: { revenue: 5000000, profit: 1700000 },
+        },
+        transactions: 280,
+      };
+    }
+    const response = await apiRequest<any>('/reports/monthly');
+    return response.data || response;
+  },
+
+  // Get custom report
+  getCustomReport: async (startDate: string, endDate: string): Promise<ReportData> => {
+    const response = await apiRequest<any>(`/reports/custom?startDate=${startDate}&endDate=${endDate}`);
+    return response.data || response;
+  },
+
+  // Export report as PDF
+  exportReport: async (startDate: string, endDate: string): Promise<Blob> => {
     if (USE_MOCK) {
       await new Promise(r => setTimeout(r, 500));
       return new Blob(['Mock PDF content'], { type: 'application/pdf' });
     }
-    const response = await fetch(`${API_BASE_URL}/reports/export/${format}`, {
+    
+    const url = `${API_BASE_URL}/reports/export/pdf?startDate=${startDate}&endDate=${endDate}`;
+    console.log('📤 Exporting PDF:', url);
+    
+    const response = await fetch(url, {
       headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
     });
-    if (!response.ok) throw new Error('Failed to export report');
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('❌ Export failed:', errorText);
+      throw new Error('Failed to export report');
+    }
+    
     return response.blob();
-  }
+  },
+
+  // For backward compatibility with your existing UI
+  getSummary: async (period: 'daily' | 'weekly' | 'monthly'): Promise<ReportSummary> => {
+    let reportData: ReportData;
+    
+    if (period === 'daily') {
+      reportData = await reportsApi.getDaily();
+    } else if (period === 'weekly') {
+      reportData = await reportsApi.getWeekly();
+    } else {
+      reportData = await reportsApi.getMonthly();
+    }
+    
+    // Transform to the format your UI expects
+    return {
+      period,
+      totalSales: reportData.revenue,
+      totalProfit: reportData.profit,
+      totalTransactions: reportData.transactions,
+      salesByCategory: Object.entries(reportData.byCategory).map(([category, data]) => ({
+        category: category.toLowerCase(),
+        amount: data.revenue,
+      })),
+      salesByPayment: Object.entries(reportData.bySource).map(([source, data]) => ({
+        method: source.toLowerCase().replace('_', ' '),
+        amount: data.revenue,
+      })),
+    };
+  },
 };
+
+
 // Currency formatter for Naira
 export const formatCurrency = (amount: number): string => {
   return new Intl.NumberFormat('en-NG', {

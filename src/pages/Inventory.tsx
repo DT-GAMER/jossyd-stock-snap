@@ -41,10 +41,16 @@ const Inventory = () => {
   };
 
   const filtered = products.filter(p => {
-    const matchesSearch = p.name.toLowerCase().includes(search.toLowerCase());
-    const matchesCategory = categoryFilter === 'all' || p.category === categoryFilter;
-    return matchesSearch && matchesCategory;
-  });
+  const matchesSearch = p.name.toLowerCase().includes(search.toLowerCase());
+  
+  // Convert both to lowercase for comparison
+  const productCategory = p.category?.toLowerCase();
+  const filterCategory = categoryFilter.toLowerCase();
+  
+  const matchesCategory = categoryFilter === 'all' || productCategory === filterCategory;
+  
+  return matchesSearch && matchesCategory;
+});
 
   const openAddDialog = () => {
     setEditingProduct(null);
@@ -65,16 +71,26 @@ const Inventory = () => {
     setSubmitting(true);
     try {
       if (editingProduct) {
-        await productsApi.update(editingProduct.id, form);
+        console.log('🔄 Updating product:', editingProduct.id);
+        console.log('📝 With data:', form);
+
+        // Make sure we're passing the ID correctly
+        await productsApi.update(editingProduct.id, form, editingProduct);
         toast({ title: 'Updated!', description: `${form.name} has been updated` });
       } else {
+        console.log('🆕 Creating new product');
         await productsApi.create(form);
         toast({ title: 'Added!', description: `${form.name} has been added to inventory` });
       }
       setDialogOpen(false);
       loadProducts();
     } catch (err: any) {
-      toast({ title: 'Error', description: err.message, variant: 'destructive' });
+      console.error('❌ Submit error:', err);
+      toast({
+        title: 'Error',
+        description: err.message || 'Failed to save product',
+        variant: 'destructive'
+      });
     } finally {
       setSubmitting(false);
     }
@@ -127,11 +143,10 @@ const Inventory = () => {
         <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
           <button
             onClick={() => setCategoryFilter('all')}
-            className={`px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all ${
-              categoryFilter === 'all'
+            className={`px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all ${categoryFilter === 'all'
                 ? 'bg-primary text-primary-foreground'
                 : 'bg-secondary text-secondary-foreground'
-            }`}
+              }`}
           >
             All
           </button>
@@ -139,11 +154,10 @@ const Inventory = () => {
             <button
               key={cat.value}
               onClick={() => setCategoryFilter(cat.value)}
-              className={`px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all ${
-                categoryFilter === cat.value
+              className={`px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all ${categoryFilter === cat.value
                   ? 'bg-primary text-primary-foreground'
                   : 'bg-secondary text-secondary-foreground'
-              }`}
+                }`}
             >
               {cat.icon} {cat.label}
             </button>

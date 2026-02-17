@@ -2,14 +2,15 @@ import { useState, useEffect } from 'react';
 import Layout from '@/components/Layout';
 import { ordersApi, formatCurrency } from '@/lib/api';
 import type { Order, OrderStatus } from '@/types';
-import { Search, X, Package, Phone, Clock, CheckCircle2, Ban, CreditCard, ChevronRight } from 'lucide-react';
+import { Search, X, Package, Phone, Clock, CheckCircle2, Ban, CreditCard, ChevronRight, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import type { LucideIcon } from 'lucide-react';
 
-const statusConfig: Record<OrderStatus, { label: string; className: string; icon: LucideIcon }> = {
+const statusConfig: Record<string, { label: string; className: string; icon: LucideIcon }> = {
   pending: { label: 'Pending', className: 'bg-warning-light text-warning-foreground', icon: Clock },
   paid: { label: 'Paid', className: 'bg-info-light text-info', icon: CreditCard },
   completed: { label: 'Completed', className: 'bg-success-light text-success', icon: CheckCircle2 },
@@ -30,6 +31,7 @@ const Orders = () => {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
   const [updating, setUpdating] = useState(false);
   const { toast } = useToast();
 
@@ -72,6 +74,25 @@ const Orders = () => {
     }
   };
 
+  const handleCancelOrder = async () => {
+    if (!selectedOrder) return;
+    setUpdating(true);
+    try {
+      const updated = await ordersApi.updateStatus(selectedOrder.id, 'cancelled');
+      setOrders(prev => prev.map(o => o.id === selectedOrder.id ? updated : o));
+      setSelectedOrder(updated);
+      setCancelDialogOpen(false);
+      toast({
+        title: 'Order Cancelled',
+        description: `Order ${selectedOrder.orderNumber} has been cancelled`,
+      });
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.message, variant: 'destructive' });
+    } finally {
+      setUpdating(false);
+    }
+  };
+
   const pendingCount = orders.filter(o => o.status === 'pending').length;
 
   return (
@@ -102,10 +123,11 @@ const Orders = () => {
             <button
               key={f.value}
               onClick={() => setStatusFilter(f.value)}
-              className={`px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all ${statusFilter === f.value
+              className={`px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all ${
+                statusFilter === f.value
                   ? 'bg-primary text-primary-foreground'
                   : 'bg-secondary text-secondary-foreground'
-                }`}
+              }`}
             >
               {f.label}
             </button>
@@ -136,15 +158,15 @@ const Orders = () => {
       ) : (
         <div className="space-y-2">
           {filtered.map((order, index) => {
-            const config =
-              statusConfig[order.status as OrderStatus] ??
-              statusConfig.pending;
-
+            const config = statusConfig[order.status] || statusConfig.pending;
             const StatusIcon = config.icon;
+            
             return (
               <button
                 key={order.id}
-                onClick={() => setSelectedOrder(order)}
+                onClick={() => {
+                  setSelectedOrder(order);
+                }}
                 className="w-full bg-card rounded-xl p-3 shadow-card text-left hover:shadow-card-hover transition-shadow animate-fade-in"
                 style={{ animationDelay: `${index * 40}ms` }}
               >
@@ -178,8 +200,9 @@ const Orders = () => {
       <Dialog open={!!selectedOrder} onOpenChange={() => setSelectedOrder(null)}>
         <DialogContent className="max-w-sm mx-auto rounded-2xl max-h-[90vh] overflow-y-auto">
           {selectedOrder && (() => {
-            const config = statusConfig[selectedOrder.status];
+            const config = statusConfig[selectedOrder.status] || statusConfig.pending;
             const StatusIcon = config.icon;
+            
             return (
               <>
                 <DialogHeader>
@@ -190,6 +213,7 @@ const Orders = () => {
                     </span>
                   </DialogTitle>
                 </DialogHeader>
+                
                 <div className="space-y-4">
                   {/* Customer */}
                   <div className="bg-secondary rounded-xl p-3">
@@ -199,7 +223,7 @@ const Orders = () => {
                       <p className="text-xs text-muted-foreground">{selectedOrder.customerPhone}</p>
                     </div>
                     <p className="text-xs text-muted-foreground mt-1">
-                      Source: {selectedOrder.source} • {new Date(selectedOrder.createdAt).toLocaleDateString()}
+                      {new Date(selectedOrder.createdAt).toLocaleString()}
                     </p>
                   </div>
 
@@ -207,19 +231,23 @@ const Orders = () => {
                   <div>
                     <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Items</p>
                     <div className="space-y-2">
-                      {selectedOrder.items.map((item, i) => (
-                        <div key={i} className="flex items-center justify-between bg-card border border-border rounded-lg p-2.5">
-                          <div>
-                            <p className="text-sm font-medium text-foreground">{item.productName}</p>
-                            <p className="text-xs text-muted-foreground">
-                              {item.quantity} × {formatCurrency(item.unitPrice)}
+                      {selectedOrder.items && selectedOrder.items.length > 0 ? (
+                        selectedOrder.items.map((item, i) => (
+                          <div key={i} className="flex items-center justify-between bg-card border border-border rounded-lg p-2.5">
+                            <div>
+                              <p className="text-sm font-medium text-foreground">{item.productName}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {item.quantity} × {formatCurrency(item.unitPrice)}
+                              </p>
+                            </div>
+                            <p className="text-sm font-semibold text-foreground">
+                              {formatCurrency(item.quantity * item.unitPrice)}
                             </p>
                           </div>
-                          <p className="text-sm font-semibold text-foreground">
-                            {formatCurrency(item.quantity * item.unitPrice)}
-                          </p>
-                        </div>
-                      ))}
+                        ))
+                      ) : (
+                        <p className="text-sm text-muted-foreground text-center py-2">No items</p>
+                      )}
                     </div>
                   </div>
 
@@ -229,9 +257,9 @@ const Orders = () => {
                     <span className="text-xl font-bold text-foreground">{formatCurrency(selectedOrder.totalAmount)}</span>
                   </div>
 
-                  {/* Actions */}
-                  <div className="space-y-2">
-                    {selectedOrder.status === 'pending' && (
+                  {/* Actions based on status */}
+                  {selectedOrder.status === 'pending' && (
+                    <div className="space-y-2">
                       <Button
                         onClick={() => handleUpdateStatus(selectedOrder.id, 'paid')}
                         disabled={updating}
@@ -239,23 +267,77 @@ const Orders = () => {
                       >
                         {updating ? 'Updating...' : '✅ Mark as Paid'}
                       </Button>
-                    )}
-                    {selectedOrder.status === 'paid' && (
                       <Button
-                        onClick={() => handleUpdateStatus(selectedOrder.id, 'completed')}
+                        onClick={() => setCancelDialogOpen(true)}
                         disabled={updating}
-                        className="w-full h-12 rounded-xl bg-success text-success-foreground font-semibold hover:opacity-90"
+                        variant="outline"
+                        className="w-full h-12 rounded-xl border-destructive text-destructive hover:bg-destructive/10 font-semibold"
                       >
-                        {updating ? 'Updating...' : '📦 Mark as Completed'}
+                        <Ban className="h-4 w-4 mr-2" />
+                        Cancel Order
                       </Button>
-                    )}
-                  </div>
+                    </div>
+                  )}
+
+                  {selectedOrder.status === 'paid' && (
+                    <Button
+                      onClick={() => handleUpdateStatus(selectedOrder.id, 'completed')}
+                      disabled={updating}
+                      className="w-full h-12 rounded-xl bg-success text-success-foreground font-semibold hover:opacity-90"
+                    >
+                      {updating ? 'Updating...' : '📦 Mark as Completed'}
+                    </Button>
+                  )}
+
+                  {selectedOrder.status === 'completed' && (
+                    <div className="bg-success-light rounded-xl p-4 text-center">
+                      <CheckCircle2 className="h-8 w-8 text-success mx-auto mb-2" />
+                      <p className="text-sm font-medium text-success-foreground">Order Completed</p>
+                    </div>
+                  )}
+
+                  {selectedOrder.status === 'cancelled' && (
+                    <div className="bg-destructive/10 rounded-xl p-4 text-center">
+                      <Ban className="h-8 w-8 text-destructive mx-auto mb-2" />
+                      <p className="text-sm font-medium text-destructive">Order Cancelled</p>
+                    </div>
+                  )}
                 </div>
               </>
             );
           })()}
         </DialogContent>
       </Dialog>
+
+      {/* Cancel Confirmation Dialog */}
+      <AlertDialog open={cancelDialogOpen} onOpenChange={setCancelDialogOpen}>
+        <AlertDialogContent className="max-w-sm rounded-2xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertCircle className="h-5 w-5 text-destructive" />
+              Cancel Order
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to cancel order <span className="font-bold text-foreground">{selectedOrder?.orderNumber}</span>?
+              <br />
+              <br />
+              This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="rounded-xl" disabled={updating}>
+              No, Keep Order
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleCancelOrder}
+              disabled={updating}
+              className="rounded-xl bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {updating ? 'Cancelling...' : 'Yes, Cancel Order'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Layout>
   );
 };

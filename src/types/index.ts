@@ -1,7 +1,9 @@
+// Extend ProductMedia to include optional file for uploads
 export interface ProductMedia {
   id: string;
   url: string;
   type: 'image' | 'video';
+  file?: File; // For new uploads
 }
 
 export interface ProductDiscount {
@@ -100,6 +102,7 @@ export interface AuthResponse {
   };
 }
 
+// Form data types - these match what the form collects
 export interface ProductFormData {
   name: string;
   description: string;
@@ -107,9 +110,29 @@ export interface ProductFormData {
   costPrice: number;
   sellingPrice: number;
   quantity: number;
-  media: ProductMedia[];
+  media: ProductMedia[];  // Now includes optional file property
   visibleOnWebsite: boolean;
   discount?: ProductDiscount;
+}
+
+// API request types - these match what the backend expects
+export interface ProductApiRequest {
+  name: string;
+  description: string;
+  category: string; // Uppercase
+  costPrice: number;
+  sellingPrice: number;
+  quantity: number;
+  visibleOnWebsite: boolean;
+  discountType: 'NONE' | 'PERCENTAGE' | 'FIXED';
+  discountValue: number;
+}
+
+// For sending existing media metadata in updates
+export interface ExistingMediaMetadata {
+  id: string;
+  url: string;
+  type: 'image' | 'video';
 }
 
 export interface SaleFormData {
@@ -117,6 +140,16 @@ export interface SaleFormData {
   quantity: number;
   paymentMethod: PaymentMethod;
   unitPrice: number;
+}
+
+// Backend sale request format
+export interface SaleApiRequest {
+  paymentMethod: string; // Uppercase
+  items: Array<{
+    productId: string;
+    quantity: number;
+    sellingPrice: number;
+  }>;
 }
 
 export type Period = 'daily' | 'weekly' | 'monthly';
@@ -131,4 +164,12 @@ export interface ReportSummary {
   salesByPayment: Array<{ method: string; amount: number }>;
   startDate?: string;
   endDate?: string;
+}
+
+// API Response wrapper (based on your backend pattern)
+export interface ApiResponse<T> {
+  success: boolean;
+  timestamp: string;
+  data: T;
+  message?: string;
 }

@@ -102,10 +102,6 @@ const Login = () => {
             )}
           </Button>
         </form>
-
-        <p className="text-xs text-center text-muted-foreground mt-6">
-          Demo: admin@jossydiva.com / admin123
-        </p>
       </div>
     </div>
   );

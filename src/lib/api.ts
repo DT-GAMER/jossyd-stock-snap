@@ -182,77 +182,183 @@ export const productsApi = {
   },
 
   create: async (data: ProductFormData): Promise<Product> => {
-  if (USE_MOCK) {
-    await new Promise(r => setTimeout(r, 400));
-    const product: Product = {
-      id: String(nextProductId++),
-      ...data,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-    mockProducts.push(product);
-    return product;
-  }
-  
-  console.log('Form data received:', data); // Debug
-  
-  const apiData: any = {
-    name: data.name,
-    description: data.description || '',
-    category: data.category.toUpperCase(),
-    costPrice: data.costPrice,
-    sellingPrice: data.sellingPrice,
-    quantity: data.quantity,
-    visibleOnWebsite: data.visibleOnWebsite ?? false,
-  };
-  
-  if (data.discount && data.discount.type && data.discount.value !== undefined) {
-    apiData.discountType = data.discount.type.toUpperCase();
-    apiData.discountValue = data.discount.value;
-  } else {
-    apiData.discountType = null;
-    apiData.discountValue = null;
-  }
-  
-  console.log('Sending to API:', apiData); // Debug
-  
-  return apiRequest<Product>('/products', {
-    method: 'POST',
-    body: JSON.stringify(apiData),
-  });
-},
+    if (USE_MOCK) {
+      await new Promise(r => setTimeout(r, 400));
+      const product: Product = {
+        id: String(nextProductId++),
+        ...data,
+        media: data.media.map(m => ({
+          id: crypto.randomUUID(),
+          url: m.url,
+          type: m.type
+        })),
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      mockProducts.push(product);
+      return product;
+    }
 
-update: async (
-  id: string,
-  data: Partial<ProductFormData>,
-  existing: Product // 👈 pass current product
-): Promise<Product> => {
+    const formData = new FormData();
 
-  const apiData = {
-    name: (data.name ?? existing.name).trim(),
-    description: (data.description ?? existing.description).trim(),
-    category: (data.category ?? existing.category).toUpperCase(),
-    costPrice: Number(data.costPrice ?? existing.costPrice),
-    sellingPrice: Number(data.sellingPrice ?? existing.sellingPrice),
-    quantity: Number(data.quantity ?? existing.quantity),
-    visibleOnWebsite: data.visibleOnWebsite ?? existing.visibleOnWebsite,
-    discountType: 'NONE',
-    discountValue: 0,
-  };
+    formData.append('name', data.name);
+    formData.append('description', data.description || '');
+    formData.append('category', data.category.toUpperCase());
+    formData.append('costPrice', String(data.costPrice));
+    formData.append('sellingPrice', String(data.sellingPrice));
+    formData.append('quantity', String(data.quantity));
+    formData.append('visibleOnWebsite', String(data.visibleOnWebsite ?? false));
 
-  if (data.discount && data.discount.value > 0) {
-    apiData.discountType = data.discount.type.toUpperCase();
-    apiData.discountValue = Number(data.discount.value);
-  } else if (existing.discount) {
-    apiData.discountType = existing.discount.type.toUpperCase();
-    apiData.discountValue = existing.discount.value;
-  }
+    // Add discount fields if they exist
+    if (data.discount && data.discount.value > 0) {
+      formData.append('discountType', data.discount.type.toUpperCase());
+      formData.append('discountValue', String(data.discount.value));
+    } else {
+      // Send empty values as shown in Swagger
+      formData.append('discountType', '');
+      formData.append('discountValue', '');
+    }
 
-  return apiRequest<Product>(`/products/${id}`, {
-    method: 'PUT',
-    body: JSON.stringify(apiData),
-  });
-},
+    const filesToUpload = data.media.filter(m => m.file);
+    filesToUpload.forEach((media, index) => {
+      const file = media.file as File;
+      formData.append('files', file);
+    });
+
+    const headers: Record<string, string> = {};
+    if (authToken) {
+      headers['Authorization'] = `Bearer ${authToken}`;
+    }
+
+    const response = await fetch(`${API_BASE_URL}/products`, {
+      method: 'POST',
+      headers,
+      body: formData,
+    });
+
+    const responseText = await response.text();
+
+    if (!response.ok) {
+      throw new Error(`Product creation failed: ${responseText}`);
+    }
+
+    const result = JSON.parse(responseText);
+
+    // Return the product data
+    return result.data || result;
+  },
+
+  update: async (
+    id: string,
+    data: Partial<ProductFormData>,
+    existing: Product
+  ): Promise<Product> => {
+    if (USE_MOCK) {
+      await new Promise(r => setTimeout(r, 400));
+      const index = mockProducts.findIndex(p => p.id === id);
+      if (index === -1) throw new Error('Product not found');
+
+      const updated = {
+        ...mockProducts[index],
+        ...data,
+        media: data.media || mockProducts[index].media,
+        updatedAt: new Date().toISOString(),
+      };
+      mockProducts[index] = updated;
+      return updated;
+    }
+
+    const formData = new FormData();
+
+    // Add ONLY the fields that are allowed to be updated
+    // Based on the error, costPrice should NOT be included
+
+    if (data.name !== undefined && data.name !== existing.name) {
+      formData.append('name', data.name);
+    }
+
+    if (data.description !== undefined && data.description !== existing.description) {
+      formData.append('description', data.description);
+    }
+
+    if (data.category !== undefined && data.category !== existing.category) {
+      formData.append('category', data.category.toUpperCase());
+    }
+
+    // ⚠️ IMPORTANT: Do NOT include costPrice in updates
+    // if (data.costPrice !== undefined) { ... } - REMOVED
+
+    if (data.sellingPrice !== undefined && data.sellingPrice !== existing.sellingPrice) {
+      formData.append('sellingPrice', String(data.sellingPrice));
+    }
+
+    if (data.quantity !== undefined && data.quantity !== existing.quantity) {
+      formData.append('quantity', String(data.quantity));
+    }
+
+    if (data.visibleOnWebsite !== undefined && data.visibleOnWebsite !== existing.visibleOnWebsite) {
+      formData.append('visibleOnWebsite', String(data.visibleOnWebsite));
+    }
+
+    // Handle discount - only if it changed
+    const discountChanged =
+      (data.discount && !existing.discount) ||
+      (!data.discount && existing.discount) ||
+      (data.discount && existing.discount &&
+        (data.discount.type !== existing.discount.type ||
+          data.discount.value !== existing.discount.value));
+
+    if (discountChanged) {
+      if (data.discount && data.discount.value > 0) {
+        formData.append('discountType', data.discount.type.toUpperCase());
+        formData.append('discountValue', String(data.discount.value));
+      } else {
+        // Discount was removed
+        formData.append('discountType', '');
+        formData.append('discountValue', '');
+      }
+    }
+
+    // Add new files if any
+    const newFiles = data.media?.filter(m => m.file) || [];
+
+    newFiles.forEach((media, index) => {
+      const file = media.file as File;
+      formData.append('files', file);
+    });
+
+    // If there's nothing to update, return early
+    if (Array.from(formData.keys()).length === 0) {
+      return existing;
+    }
+
+    const headers: Record<string, string> = {};
+    if (authToken) {
+      headers['Authorization'] = `Bearer ${authToken}`;
+    }
+
+    const response = await fetch(`${API_BASE_URL}/products/${id}`, {
+      method: 'PUT',
+      headers,
+      body: formData,
+    });
+
+    const responseText = await response.text();
+
+    if (!response.ok) {
+      throw new Error(`Product update failed: ${responseText}`);
+    }
+
+    const result = JSON.parse(responseText);
+
+    const updatedProduct = result.data || result;
+
+    if (!updatedProduct.media || updatedProduct.media.length === 0) {
+      updatedProduct.media = existing.media;
+    }
+
+    return updatedProduct;
+  },
 
   delete: async (id: string): Promise<void> => {
     if (USE_MOCK) {
@@ -293,9 +399,20 @@ export const salesApi = {
       mockSales.push(sale);
       return sale;
     }
-    return apiRequest<Sale>('/sales', {
-      method: 'POST',
-      body: JSON.stringify(data),
+    const payload = {
+      paymentMethod: data.paymentMethod.toUpperCase(),
+      items: [
+        {
+          productId: data.productId,
+          quantity: Number(data.quantity),
+          sellingPrice: Number(data.unitPrice),
+        },
+      ],
+    };
+
+    return apiRequest<Sale>("/sales", {
+      method: "POST",
+      body: JSON.stringify(payload),
     });
   },
 
@@ -315,7 +432,50 @@ export const ordersApi = {
       await new Promise(r => setTimeout(r, 300));
       return [...mockOrders].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     }
-    return apiRequest<Order[]>('/orders');
+    
+    const response = await apiRequest<any>('/orders');
+    
+    // Handle the response structure (it might be wrapped in a data property)
+    const ordersData = response.data || response;
+    
+    if (!Array.isArray(ordersData)) {
+      return [];
+    }
+    
+    // Transform each order to match your Order type
+    return ordersData.map((order: any) => {
+      // Map backend status to frontend status
+      let frontendStatus: OrderStatus = 'pending';
+      const backendStatus = order.status?.toUpperCase() || '';
+      
+      if (backendStatus === 'PENDING_PAYMENT') {
+        frontendStatus = 'pending';  // This should be 'pending', not 'pending_payment'
+      } else if (backendStatus === 'PAID') {
+        frontendStatus = 'paid';
+      } else if (backendStatus === 'COMPLETED') {
+        frontendStatus = 'completed';
+      } else if (backendStatus === 'CANCELLED') {
+        frontendStatus = 'cancelled';
+      }
+      
+      return {
+        id: order.id,
+        orderNumber: order.orderNumber,
+        customerName: order.customerName,
+        customerPhone: order.phone || order.customerPhone,
+        items: (order.items || []).map((item: any) => ({
+          productId: item.productId,
+          productName: item.product?.name || item.productName || 'Product',
+          quantity: item.quantity,
+          unitPrice: item.unitPrice || item.priceAtOrder || item.price || 0,
+        })),
+        totalAmount: order.totalAmount,
+        source: (order.source || 'website').toLowerCase(),
+        status: frontendStatus, // Use mapped status
+        createdAt: order.createdAt,
+        updatedAt: order.updatedAt,
+      };
+    });
   },
 
   updateStatus: async (id: string, status: OrderStatus): Promise<Order> => {
@@ -342,10 +502,102 @@ export const ordersApi = {
       mockOrders[index] = { ...order, status, updatedAt: new Date().toISOString() };
       return { ...mockOrders[index] };
     }
-    return apiRequest<Order>(`/orders/${id}/status`, {
+    
+    // Map frontend status to backend status
+    let backendStatus = '';
+    if (status === 'pending') {
+      backendStatus = 'PENDING_PAYMENT';
+    } else if (status === 'paid') {
+      backendStatus = 'PAID';
+    } else if (status === 'completed') {
+      backendStatus = 'COMPLETED';
+    } else if (status === 'cancelled') {
+      backendStatus = 'CANCELLED';
+    }
+    
+    const response = await apiRequest<any>(`/orders/${id}/status`, {
       method: 'PUT',
-      body: JSON.stringify({ status }),
+      body: JSON.stringify({ status: backendStatus }),
     });
+    
+    const orderData = response.data || response;
+    
+    // Map backend status back to frontend status
+    let frontendStatus: OrderStatus = 'pending';
+    const responseStatus = orderData.status?.toUpperCase() || '';
+    
+    if (responseStatus === 'PENDING_PAYMENT') {
+      frontendStatus = 'pending';
+    } else if (responseStatus === 'PAID') {
+      frontendStatus = 'paid';
+    } else if (responseStatus === 'COMPLETED') {
+      frontendStatus = 'completed';
+    } else if (responseStatus === 'CANCELLED') {
+      frontendStatus = 'cancelled';
+    }
+    
+    return {
+      id: orderData.id,
+      orderNumber: orderData.orderNumber,
+      customerName: orderData.customerName,
+      customerPhone: orderData.phone || orderData.customerPhone,
+      items: (orderData.items || []).map((item: any) => ({
+        productId: item.productId,
+        productName: item.product?.name || item.productName || 'Product',
+        quantity: item.quantity,
+        unitPrice: item.unitPrice || item.priceAtOrder || item.price || 0,
+      })),
+      totalAmount: orderData.totalAmount,
+      source: (orderData.source || 'website').toLowerCase(),
+      status: frontendStatus,
+      createdAt: orderData.createdAt,
+      updatedAt: orderData.updatedAt,
+    };
+  },
+
+  getByOrderNumber: async (orderNumber: string): Promise<Order> => {
+    if (USE_MOCK) {
+      await new Promise(r => setTimeout(r, 200));
+      const order = mockOrders.find(o => o.orderNumber === orderNumber);
+      if (!order) throw new Error('Order not found');
+      return order;
+    }
+    
+    const response = await apiRequest<any>(`/orders/${orderNumber}`);
+    
+    const orderData = response.data || response;
+    
+    // Map backend status to frontend status
+    let frontendStatus: OrderStatus = 'pending';
+    const backendStatus = orderData.status?.toUpperCase() || '';
+    
+    if (backendStatus === 'PENDING_PAYMENT') {
+      frontendStatus = 'pending';
+    } else if (backendStatus === 'PAID') {
+      frontendStatus = 'paid';
+    } else if (backendStatus === 'COMPLETED') {
+      frontendStatus = 'completed';
+    } else if (backendStatus === 'CANCELLED') {
+      frontendStatus = 'cancelled';
+    }
+    
+    return {
+      id: orderData.id,
+      orderNumber: orderData.orderNumber,
+      customerName: orderData.customerName,
+      customerPhone: orderData.phone || orderData.customerPhone,
+      items: (orderData.items || []).map((item: any) => ({
+        productId: item.productId,
+        productName: item.product?.name || item.productName || 'Product',
+        quantity: item.quantity,
+        unitPrice: item.unitPrice || item.priceAtOrder || item.price || 0,
+      })),
+      totalAmount: orderData.totalAmount,
+      source: (orderData.source || 'website').toLowerCase(),
+      status: frontendStatus,
+      createdAt: orderData.createdAt,
+      updatedAt: orderData.updatedAt,
+    };
   },
 
   getPendingCount: async (): Promise<number> => {
@@ -353,7 +605,8 @@ export const ordersApi = {
       await new Promise(r => setTimeout(r, 100));
       return mockOrders.filter(o => o.status === 'pending').length;
     }
-    return apiRequest<number>('/orders/pending-count');
+    const response = await apiRequest<any>('/orders/pending-count');
+    return response.data || response;
   },
 };
 
@@ -418,7 +671,7 @@ export const reportsApi = {
     const endpoint = `/reports/${period}`;
     return apiRequest<ReportSummary>(endpoint);
   },
-  
+
   getCustomReport: async (startDate: string, endDate: string): Promise<ReportSummary> => {
     return apiRequest<ReportSummary>(`/reports/custom?startDate=${startDate}&endDate=${endDate}`);
   },

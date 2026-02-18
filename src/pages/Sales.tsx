@@ -7,6 +7,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
+import { useNavigate } from 'react-router-dom';
+import { History } from 'lucide-react';
 
 const Sales = () => {
   const [products, setProducts] = useState<Product[]>([]);
@@ -19,6 +21,7 @@ const Sales = () => {
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   useEffect(() => {
     loadProducts();
@@ -89,7 +92,20 @@ const Sales = () => {
   // Product Selection
   if (!selectedProduct) {
     return (
-      <Layout title="New Sale" subtitle="Select a product">
+      <Layout 
+        title="New Sale" 
+        subtitle="Select a product" 
+        headerRight={
+          <Button
+            variant="ghost"
+            size="lg"
+            onClick={() => navigate('/sales/history')}
+            className="text-muted-foreground cursor-pointer"
+          >
+            <p>Sales History</p>
+            <History className="h-5 w-5" />
+          </Button>
+      }>
         <div className="relative mb-4">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
@@ -230,11 +246,10 @@ const Sales = () => {
           <div className="grid grid-cols-2 gap-3">
             <button
               onClick={() => setPaymentMethod('cash')}
-              className={`p-4 rounded-xl border-2 transition-all flex flex-col items-center gap-2 ${
-                paymentMethod === 'cash'
+              className={`p-4 rounded-xl border-2 transition-all flex flex-col items-center gap-2 ${paymentMethod === 'cash'
                   ? 'border-primary bg-primary/5'
                   : 'border-border bg-card'
-              }`}
+                }`}
             >
               <Banknote className={`h-6 w-6 ${paymentMethod === 'cash' ? 'text-primary' : 'text-muted-foreground'}`} />
               <span className={`text-sm font-semibold ${paymentMethod === 'cash' ? 'text-primary' : 'text-muted-foreground'}`}>
@@ -243,11 +258,10 @@ const Sales = () => {
             </button>
             <button
               onClick={() => setPaymentMethod('transfer')}
-              className={`p-4 rounded-xl border-2 transition-all flex flex-col items-center gap-2 ${
-                paymentMethod === 'transfer'
+              className={`p-4 rounded-xl border-2 transition-all flex flex-col items-center gap-2 ${paymentMethod === 'transfer'
                   ? 'border-primary bg-primary/5'
                   : 'border-border bg-card'
-              }`}
+                }`}
             >
               <ArrowRightLeft className={`h-6 w-6 ${paymentMethod === 'transfer' ? 'text-primary' : 'text-muted-foreground'}`} />
               <span className={`text-sm font-semibold ${paymentMethod === 'transfer' ? 'text-primary' : 'text-muted-foreground'}`}>

@@ -84,14 +84,6 @@ const mockProducts: Product[] = [
   { id: '10', name: 'Silver Ring Set', description: 'Beautiful silver ring jewelry set', category: 'jewelry', costPrice: 3000, sellingPrice: 7500, quantity: 6, media: [], visibleOnWebsite: true, createdAt: '2026-02-02', updatedAt: '2026-02-04' },
 ];
 
-const mockSales: Sale[] = [
-  { id: 's1', productId: '1', productName: 'Ankara Midi Dress', quantity: 2, unitPrice: 15000, costPrice: 8000, totalAmount: 30000, profit: 14000, paymentMethod: 'cash', createdAt: '2026-02-06T09:30:00' },
-  { id: 's2', productId: '3', productName: 'Tom Ford Noir', quantity: 1, unitPrice: 45000, costPrice: 25000, totalAmount: 45000, profit: 20000, paymentMethod: 'transfer', createdAt: '2026-02-06T10:15:00' },
-  { id: 's3', productId: '6', productName: 'Pearl Necklace Set', quantity: 1, unitPrice: 12000, costPrice: 5000, totalAmount: 12000, profit: 7000, paymentMethod: 'cash', createdAt: '2026-02-06T11:00:00' },
-  { id: 's4', productId: '4', productName: 'Shea Butter Cream', quantity: 3, unitPrice: 4500, costPrice: 2000, totalAmount: 13500, profit: 7500, paymentMethod: 'transfer', createdAt: '2026-02-05T14:00:00' },
-  { id: 's5', productId: '7', productName: 'Lace Blouse', quantity: 1, unitPrice: 9500, costPrice: 5000, totalAmount: 9500, profit: 4500, paymentMethod: 'cash', createdAt: '2026-02-05T16:30:00' },
-];
-
 const mockOrders: Order[] = [
   {
     id: 'o1', orderNumber: 'JDC-0001', customerName: 'Ada Okonkwo', customerPhone: '08012345678',
@@ -251,7 +243,7 @@ export const productsApi = {
 
   update: async (
     id: string,
-    data: Partial<ProductFormData>,
+    data: Partial<ProductFormData> & { newFiles?: { file: File; type: string }[] },
     existing: Product
   ): Promise<Product> => {
     if (USE_MOCK) {
@@ -271,72 +263,43 @@ export const productsApi = {
 
     const formData = new FormData();
 
-    // Add ONLY the fields that are allowed to be updated
-    // Based on the error, costPrice should NOT be included
+    // Add JSON fields as form fields
+    formData.append('name', data.name || existing.name);
+    formData.append('description', data.description || existing.description);
+    formData.append('category', (data.category || existing.category).toUpperCase());
 
-    if (data.name !== undefined && data.name !== existing.name) {
-      formData.append('name', data.name);
+    // Only include costPrice if it's being updated (though backend might not allow it)
+    if (data.costPrice !== undefined && data.costPrice !== existing.costPrice) {
+      formData.append('costPrice', String(data.costPrice));
     }
 
-    if (data.description !== undefined && data.description !== existing.description) {
-      formData.append('description', data.description);
-    }
+    formData.append('sellingPrice', String(data.sellingPrice || existing.sellingPrice));
+    formData.append('quantity', String(data.quantity || existing.quantity));
+    formData.append('visibleOnWebsite', String(data.visibleOnWebsite ?? existing.visibleOnWebsite));
 
-    if (data.category !== undefined && data.category !== existing.category) {
-      formData.append('category', data.category.toUpperCase());
-    }
-
-    // ⚠️ IMPORTANT: Do NOT include costPrice in updates
-    // if (data.costPrice !== undefined) { ... } - REMOVED
-
-    if (data.sellingPrice !== undefined && data.sellingPrice !== existing.sellingPrice) {
-      formData.append('sellingPrice', String(data.sellingPrice));
-    }
-
-    if (data.quantity !== undefined && data.quantity !== existing.quantity) {
-      formData.append('quantity', String(data.quantity));
-    }
-
-    if (data.visibleOnWebsite !== undefined && data.visibleOnWebsite !== existing.visibleOnWebsite) {
-      formData.append('visibleOnWebsite', String(data.visibleOnWebsite));
-    }
-
-    // Handle discount - only if it changed
-    const discountChanged =
-      (data.discount && !existing.discount) ||
-      (!data.discount && existing.discount) ||
-      (data.discount && existing.discount &&
-        (data.discount.type !== existing.discount.type ||
-          data.discount.value !== existing.discount.value));
-
-    if (discountChanged) {
-      if (data.discount && data.discount.value > 0) {
-        formData.append('discountType', data.discount.type.toUpperCase());
-        formData.append('discountValue', String(data.discount.value));
-      } else {
-        // Discount was removed
-        formData.append('discountType', '');
-        formData.append('discountValue', '');
-      }
+    // Handle discount
+    if (data.discount) {
+      formData.append('discountType', data.discount.type.toUpperCase());
+      formData.append('discountValue', String(data.discount.value));
+    } else if (existing.discount) {
+      // Send empty to remove discount
+      formData.append('discountType', '');
+      formData.append('discountValue', '');
     }
 
     // Add new files if any
-    const newFiles = data.media?.filter(m => m.file) || [];
-
-    newFiles.forEach((media, index) => {
-      const file = media.file as File;
-      formData.append('files', file);
-    });
-
-    // If there's nothing to update, return early
-    if (Array.from(formData.keys()).length === 0) {
-      return existing;
+    if (data.newFiles && data.newFiles.length > 0) {
+      data.newFiles.forEach((item) => {
+        formData.append('files', item.file);
+      });
     }
 
     const headers: Record<string, string> = {};
     if (authToken) {
       headers['Authorization'] = `Bearer ${authToken}`;
     }
+
+    console.log('🚀 Sending update with FormData keys:', Array.from(formData.keys()));
 
     const response = await fetch(`${API_BASE_URL}/products/${id}`, {
       method: 'PUT',
@@ -351,16 +314,10 @@ export const productsApi = {
     }
 
     const result = JSON.parse(responseText);
+    console.log('✅ Update response:', result);
 
-    const updatedProduct = result.data || result;
-
-    if (!updatedProduct.media || updatedProduct.media.length === 0) {
-      updatedProduct.media = existing.media;
-    }
-
-    return updatedProduct;
+    return result.data || result;
   },
-
   delete: async (id: string): Promise<void> => {
     if (USE_MOCK) {
       await new Promise(r => setTimeout(r, 300));
@@ -370,36 +327,63 @@ export const productsApi = {
     }
     await apiRequest(`/products/${id}`, { method: 'DELETE' });
   },
+
+  getCategories: async (): Promise<{ value: string; label: string; icon: string }[]> => {
+    if (USE_MOCK) {
+      await new Promise(r => setTimeout(r, 200));
+      return [
+        { value: 'clothes', label: 'Clothes', icon: '👗' },
+        { value: 'shoes', label: 'Shoes', icon: '👠' },
+        { value: 'perfumes', label: 'Perfumes', icon: '🧴' },
+        { value: 'creams', label: 'Creams', icon: '✨' },
+        { value: 'watches', label: 'Watches', icon: '⌚' },
+        { value: 'jewelry', label: 'Jewelry', icon: '💍' },
+      ];
+    }
+
+    const response = await apiRequest<any>('/products/categories');
+    console.log('📦 Categories response:', response);
+
+    const categoriesData = response.data || response;
+
+    return categoriesData.map((cat: any) => ({
+      value: cat.value?.toLowerCase() || cat,
+      label: cat.label || cat,
+      icon: cat.icon || '📦',
+    }));
+  },
+
+  // In your productsApi object, replace the deleteMedia function with:
+
+  deleteMedia: async (mediaId: string): Promise<void> => {
+    if (USE_MOCK) {
+      await new Promise(r => setTimeout(r, 300));
+      console.log('🗑️ Mock delete media:', mediaId);
+      return;
+    }
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/media/${mediaId}`, {
+        method: 'DELETE',
+        headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to delete media: ${errorText}`);
+      }
+
+      console.log(`✅ Media ${mediaId} deleted successfully`);
+    } catch (error) {
+      console.error('❌ Media deletion error:', error);
+      throw error;
+    }
+  },
 };
 
 // Sales API
 export const salesApi = {
   create: async (data: SaleFormData): Promise<Sale> => {
-    if (USE_MOCK) {
-      await new Promise(r => setTimeout(r, 500));
-      const product = mockProducts.find(p => p.id === data.productId);
-      if (!product) throw new Error('Product not found');
-      if (product.quantity < data.quantity) throw new Error('Insufficient stock');
-
-      const unitPrice = data.unitPrice;
-      const sale: Sale = {
-        id: `s${nextSaleId++}`,
-        productId: product.id,
-        productName: product.name,
-        quantity: data.quantity,
-        unitPrice,
-        costPrice: product.costPrice,
-        totalAmount: unitPrice * data.quantity,
-        profit: (unitPrice - product.costPrice) * data.quantity,
-        paymentMethod: data.paymentMethod,
-        createdAt: new Date().toISOString(),
-      };
-
-      // Update stock
-      product.quantity -= data.quantity;
-      mockSales.push(sale);
-      return sale;
-    }
     const payload = {
       paymentMethod: data.paymentMethod.toUpperCase(),
       items: [
@@ -418,11 +402,51 @@ export const salesApi = {
   },
 
   getAll: async (): Promise<Sale[]> => {
-    if (USE_MOCK) {
-      await new Promise(r => setTimeout(r, 300));
-      return [...mockSales].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-    }
     return apiRequest<Sale[]>('/sales');
+  },
+
+  downloadReceipt: async (saleId: string): Promise<Blob> => {
+    const url = `${API_BASE_URL}/receipts/sale/${saleId}`;
+    console.log('📤 Downloading sale receipt from:', url);
+
+    const headers: Record<string, string> = {};
+    if (authToken) {
+      headers['Authorization'] = `Bearer ${authToken}`;
+    }
+
+    try {
+      const response = await fetch(url, {
+        method: 'GET',
+        headers,
+      });
+
+      console.log('📥 Sale receipt response status:', response.status);
+
+      if (!response.ok) {
+        let errorDetails = '';
+        const contentType = response.headers.get('content-type');
+
+        if (contentType?.includes('application/json')) {
+          const errorJson = await response.json();
+          errorDetails = JSON.stringify(errorJson);
+        } else {
+          errorDetails = await response.text();
+        }
+
+        throw new Error(`Failed to download sale receipt (${response.status}): ${errorDetails}`);
+      }
+
+      // Verify content type
+      const contentType = response.headers.get('content-type');
+      if (!contentType?.includes('application/pdf')) {
+        console.warn('⚠️ Response is not PDF, content-type:', contentType);
+      }
+
+      return await response.blob();
+    } catch (error) {
+      console.error('❌ Sale receipt download error:', error);
+      throw error;
+    }
   },
 };
 
@@ -433,22 +457,22 @@ export const ordersApi = {
       await new Promise(r => setTimeout(r, 300));
       return [...mockOrders].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     }
-    
+
     const response = await apiRequest<any>('/orders');
-    
+
     // Handle the response structure (it might be wrapped in a data property)
     const ordersData = response.data || response;
-    
+
     if (!Array.isArray(ordersData)) {
       return [];
     }
-    
+
     // Transform each order to match your Order type
     return ordersData.map((order: any) => {
       // Map backend status to frontend status
       let frontendStatus: OrderStatus = 'pending';
       const backendStatus = order.status?.toUpperCase() || '';
-      
+
       if (backendStatus === 'PENDING_PAYMENT') {
         frontendStatus = 'pending';  // This should be 'pending', not 'pending_payment'
       } else if (backendStatus === 'PAID') {
@@ -458,7 +482,7 @@ export const ordersApi = {
       } else if (backendStatus === 'CANCELLED') {
         frontendStatus = 'cancelled';
       }
-      
+
       return {
         id: order.id,
         orderNumber: order.orderNumber,
@@ -503,7 +527,7 @@ export const ordersApi = {
       mockOrders[index] = { ...order, status, updatedAt: new Date().toISOString() };
       return { ...mockOrders[index] };
     }
-    
+
     // Map frontend status to backend status
     let backendStatus = '';
     if (status === 'pending') {
@@ -515,18 +539,18 @@ export const ordersApi = {
     } else if (status === 'cancelled') {
       backendStatus = 'CANCELLED';
     }
-    
+
     const response = await apiRequest<any>(`/orders/${id}/status`, {
       method: 'PUT',
       body: JSON.stringify({ status: backendStatus }),
     });
-    
+
     const orderData = response.data || response;
-    
+
     // Map backend status back to frontend status
     let frontendStatus: OrderStatus = 'pending';
     const responseStatus = orderData.status?.toUpperCase() || '';
-    
+
     if (responseStatus === 'PENDING_PAYMENT') {
       frontendStatus = 'pending';
     } else if (responseStatus === 'PAID') {
@@ -536,7 +560,7 @@ export const ordersApi = {
     } else if (responseStatus === 'CANCELLED') {
       frontendStatus = 'cancelled';
     }
-    
+
     return {
       id: orderData.id,
       orderNumber: orderData.orderNumber,
@@ -563,15 +587,15 @@ export const ordersApi = {
       if (!order) throw new Error('Order not found');
       return order;
     }
-    
+
     const response = await apiRequest<any>(`/orders/${orderNumber}`);
-    
+
     const orderData = response.data || response;
-    
+
     // Map backend status to frontend status
     let frontendStatus: OrderStatus = 'pending';
     const backendStatus = orderData.status?.toUpperCase() || '';
-    
+
     if (backendStatus === 'PENDING_PAYMENT') {
       frontendStatus = 'pending';
     } else if (backendStatus === 'PAID') {
@@ -581,7 +605,7 @@ export const ordersApi = {
     } else if (backendStatus === 'CANCELLED') {
       frontendStatus = 'cancelled';
     }
-    
+
     return {
       id: orderData.id,
       orderNumber: orderData.orderNumber,
@@ -609,46 +633,66 @@ export const ordersApi = {
     const response = await apiRequest<any>('/orders/pending-count');
     return response.data || response;
   },
+
+  downloadReceipt: async (orderNumber: string): Promise<Blob> => {
+    if (USE_MOCK) {
+      await new Promise(r => setTimeout(r, 500));
+      // Create a mock PDF blob for testing
+      return new Blob(['Mock Receipt Content'], { type: 'application/pdf' });
+    }
+
+    const url = `${API_BASE_URL}/receipts/order/${orderNumber}`;
+    console.log('📤 Downloading receipt from:', url);
+
+    const headers: Record<string, string> = {};
+    if (authToken) {
+      headers['Authorization'] = `Bearer ${authToken}`;
+    }
+
+    try {
+      const response = await fetch(url, {
+        method: 'GET',
+        headers,
+      });
+
+      console.log('📥 Receipt response status:', response.status);
+
+      if (!response.ok) {
+        let errorDetails = '';
+        const contentType = response.headers.get('content-type');
+
+        if (contentType?.includes('application/json')) {
+          const errorJson = await response.json();
+          errorDetails = JSON.stringify(errorJson);
+        } else {
+          errorDetails = await response.text();
+        }
+
+        throw new Error(`Failed to download receipt (${response.status}): ${errorDetails}`);
+      }
+
+      // Verify content type
+      const contentType = response.headers.get('content-type');
+      if (!contentType?.includes('application/pdf')) {
+        console.warn('⚠️ Response is not PDF, content-type:', contentType);
+      }
+
+      return await response.blob();
+    } catch (error) {
+      console.error('❌ Receipt download error:', error);
+      throw error;
+    }
+  },
 };
 
 // Dashboard API
 export const dashboardApi = {
   getStats: async (): Promise<DashboardStats> => {
-    if (USE_MOCK) {
-      await new Promise(r => setTimeout(r, 400));
-      const today = new Date().toISOString().split('T')[0];
-      const todaySales = mockSales.filter(s => s.createdAt.startsWith(today));
-      
-      return {
-        today: {
-          totalSalesAmount: todaySales.reduce((sum, s) => sum + s.totalAmount, 0),
-          totalProfit: todaySales.reduce((sum, s) => sum + s.profit, 0),
-          transactions: todaySales.length,
-        },
-        lowStockCount: mockProducts.filter(p => p.quantity <= 5).length,
-        lowStock: mockProducts.filter(p => p.quantity <= 5).map(p => ({
-          id: p.id,
-          name: p.name,
-          available: p.quantity,
-          category: p.category,
-          sellingPrice: p.sellingPrice,
-        })),
-        pendingOrdersCount: mockOrders.filter(o => o.status === 'pending').length,
-        pendingOrders: mockOrders.filter(o => o.status === 'pending').map(o => ({
-          id: o.id,
-          orderNumber: o.orderNumber,
-          customerName: o.customerName,
-          totalAmount: o.totalAmount,
-          createdAt: o.createdAt,
-        })),
-      };
-    }
-    
     const response = await apiRequest<any>('/dashboard');
-    
+
     // Handle response wrapper
     const data = response.data || response;
-    
+
     // Return the data as-is since it already matches the type
     return {
       today: data.today || { totalSalesAmount: 0, totalProfit: 0, transactions: 0 },
@@ -745,27 +789,27 @@ export const reportsApi = {
       await new Promise(r => setTimeout(r, 500));
       return new Blob(['Mock PDF content'], { type: 'application/pdf' });
     }
-    
+
     const url = `${API_BASE_URL}/reports/export/pdf?startDate=${startDate}&endDate=${endDate}`;
     console.log('📤 Exporting PDF:', url);
-    
+
     const response = await fetch(url, {
       headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
     });
-    
+
     if (!response.ok) {
       const errorText = await response.text();
       console.error('❌ Export failed:', errorText);
       throw new Error('Failed to export report');
     }
-    
+
     return response.blob();
   },
 
   // For backward compatibility with your existing UI
   getSummary: async (period: 'daily' | 'weekly' | 'monthly'): Promise<ReportSummary> => {
     let reportData: ReportData;
-    
+
     if (period === 'daily') {
       reportData = await reportsApi.getDaily();
     } else if (period === 'weekly') {
@@ -773,7 +817,7 @@ export const reportsApi = {
     } else {
       reportData = await reportsApi.getMonthly();
     }
-    
+
     // Transform to the format your UI expects
     return {
       period,

@@ -26,15 +26,9 @@ export interface Product {
   updatedAt: string;
 }
 
-export type ProductCategory = 
-  | 'clothes' 
-  | 'shoes' 
-  | 'perfumes' 
-  | 'creams' 
-  | 'watches' 
-  | 'jewelry';
+export type ProductCategory = string;
 
-export const CATEGORIES: { value: ProductCategory; label: string; icon: string }[] = [
+export const DEFAULT_CATEGORIES: { value: string; label: string; icon: string }[] = [
   { value: 'clothes', label: 'Clothes', icon: '👗' },
   { value: 'shoes', label: 'Shoes', icon: '👠' },
   { value: 'perfumes', label: 'Perfumes', icon: '🧴' },
@@ -172,6 +166,46 @@ export interface ExistingMediaMetadata {
   type: 'image' | 'video';
 }
 
+export interface Sale {
+  id: string;
+  source: 'WALK_IN' | 'WEBSITE';
+  orderNumber: string | null;
+  customerPhone: string | null;
+  receiptNumber: string;
+  totalAmount: number;
+  profit: number;
+  paymentMethod: PaymentMethod;
+  createdAt: string;
+  items: SaleItem[];
+}
+
+export interface SaleItem {
+  id: string;
+  saleId: string;
+  productId: string;
+  quantity: number;
+  sellingPrice: number;
+  costPrice: number;
+  product: {
+    id: string;
+    name: string;
+    description: string;
+    category: string;
+    costPrice: number;
+    sellingPrice: number;
+    discountType: string | null;
+    discountValue: number | null;
+    quantity: number;
+    reservedQuantity: number;
+    visibleOnWebsite: boolean;
+    isArchived: boolean;
+    archivedAt: string | null;
+    createdAt: string;
+    updatedAt: string;
+  };
+}
+
+// Keep this for backward compatibility if needed
 export interface SaleFormData {
   productId: string;
   quantity: number;

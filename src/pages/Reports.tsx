@@ -6,7 +6,7 @@ import { BarChart3, TrendingUp, DollarSign, ShoppingBag, Clock, Download, Calend
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { CATEGORIES } from '@/types';
+import { DEFAULT_CATEGORIES } from '@/types';
 
 const Reports = () => {
   const [period, setPeriod] = useState<Period>('daily');
@@ -88,7 +88,7 @@ const Reports = () => {
   };
 
   const getCategoryLabel = (cat: string) => {
-    const found = CATEGORIES.find(c => c.value === cat.toLowerCase());
+    const found = DEFAULT_CATEGORIES.find(c => c.value === cat.toLowerCase());
     return found ? `${found.icon} ${found.label}` : cat;
   };
 
@@ -206,7 +206,7 @@ const Reports = () => {
                   />
                 </div>
                 <span className="text-sm font-bold text-success">
-                  {report.profitMargin}%
+                  {report.profitMargin.toFixed(1)}%
                 </span>
               </div>
             </div>

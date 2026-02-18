@@ -1,18 +1,21 @@
 import { useState, useEffect } from 'react';
 import { formatCurrency } from '@/lib/api';
-import { CATEGORIES, type Product, type ProductFormData, type ProductCategory, type ProductMedia, type ProductDiscount } from '@/types';
-import { Image, Film, X, Percent, Tag } from 'lucide-react';
+import { productsApi } from '@/lib/api';
+import { DEFAULT_CATEGORIES, type Product, type ProductFormData, type ProductCategory, type ProductMedia, type ProductDiscount } from '@/types';
+import { Image, Film, X, Percent, Tag, Trash2, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Switch } from '@/components/ui/switch';
+import { useToast } from '@/hooks/use-toast';
 
-// Extended type to include File objects
+
 interface MediaFile extends ProductMedia {
-  file?: File; // Actual file for upload
-  previewUrl?: string; // For preview
+  file?: File;
+  previewUrl?: string;
+  isExisting?: boolean;
 }
 
 interface ProductFormDataWithFiles extends Omit<ProductFormData, 'media'> {
@@ -22,7 +25,7 @@ interface ProductFormDataWithFiles extends Omit<ProductFormData, 'media'> {
 const emptyForm: ProductFormDataWithFiles = {
   name: '',
   description: '',
-  category: 'clothes',
+  category: '',
   costPrice: 0,
   sellingPrice: 0,
   quantity: 0,
@@ -41,66 +44,117 @@ interface ProductFormDialogProps {
 const ProductFormDialog = ({ open, onOpenChange, editingProduct, submitting, onSubmit }: ProductFormDialogProps) => {
   const [form, setForm] = useState<ProductFormDataWithFiles>(emptyForm);
   const [hasDiscount, setHasDiscount] = useState(false);
+  const [categories, setCategories] = useState(DEFAULT_CATEGORIES);
+  const [loadingCategories, setLoadingCategories] = useState(false);
+  const [imageErrors, setImageErrors] = useState<Record<string, boolean>>({});
+  const [deletingMedia, setDeletingMedia] = useState<string | null>(null);
+  const { toast } = useToast();
 
+  // Load categories when dialog opens
   useEffect(() => {
-  if (open) {
-    if (editingProduct) {
-      console.log('✏️ Editing product:', editingProduct.id, editingProduct);
+    if (open) {
+      loadCategories();
+    }
+  }, [open]);
+
+  const loadCategories = async () => {
+    setLoadingCategories(true);
+    try {
+      const data = await productsApi.getCategories();
+      setCategories(data);
+    } catch (err: any) {
+      console.error('Failed to load categories:', err);
+      setCategories(DEFAULT_CATEGORIES);
+    } finally {
+      setLoadingCategories(false);
+    }
+  };
+
+  // Initialize form when dialog opens or editingProduct changes
+  useEffect(() => {
+    if (open && editingProduct) {
+      console.log('✏️ Editing product:', editingProduct);
+      
+      // Transform media to include preview URLs
+      const mediaWithPreviews = (editingProduct.media || []).map(m => ({
+        ...m,
+        previewUrl: m.url,
+        isExisting: true,
+      }));
+      
       setForm({
-        name: editingProduct.name,
-        description: editingProduct.description,
-        category: editingProduct.category,
-        costPrice: editingProduct.costPrice,
-        sellingPrice: editingProduct.sellingPrice,
-        quantity: editingProduct.quantity,
-        media: (editingProduct.media || []).map(m => ({
-          ...m,
-          previewUrl: m.url // Use existing URL as preview
-        })),
+        name: editingProduct.name || '',
+        description: editingProduct.description || '',
+        category: editingProduct.category || '',
+        costPrice: editingProduct.costPrice || 0,
+        sellingPrice: editingProduct.sellingPrice || 0,
+        quantity: editingProduct.quantity || 0,
+        media: mediaWithPreviews,
         visibleOnWebsite: editingProduct.visibleOnWebsite || false,
         discount: editingProduct.discount,
       });
+      
       setHasDiscount(!!editingProduct.discount);
-    } else {
-      console.log('➕ Adding new product');
+      setImageErrors({});
+    } else if (open && !editingProduct) {
       setForm(emptyForm);
       setHasDiscount(false);
+      setImageErrors({});
     }
-  }
-}, [open, editingProduct]);
+  }, [open, editingProduct]);
 
   const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    // Convert to regular ProductFormData for submission
-    const submitData: ProductFormData = {
-      name: form.name,
-      description: form.description,
-      category: form.category,
-      costPrice: form.costPrice,
-      sellingPrice: form.sellingPrice,
-      quantity: form.quantity,
-      media: form.media.map(m => ({
-        id: m.id,
-        url: m.url || '',
-        type: m.type,
-        file: m.file // Include file if present
+  e.preventDefault();
+  
+  if (!form.category) {
+    toast({ 
+      title: 'Error', 
+      description: 'Please select a category', 
+      variant: 'destructive' 
+    });
+    return;
+  }
+  
+  const submitData: ProductFormData = {
+    name: form.name,
+    description: form.description,
+    category: form.category,
+    costPrice: form.costPrice,
+    sellingPrice: form.sellingPrice,
+    quantity: form.quantity,
+    media: form.media
+      .filter(m => m.isExisting) 
+      .map(m => ({
+        id: m.id!,
+        url: m.url!,
+        type: m.type
       })),
-      visibleOnWebsite: form.visibleOnWebsite,
-    };
-    
-    if (hasDiscount && form.discount) {
-      submitData.discount = form.discount;
-    }
-    
-    console.log('Submitting form with files:', submitData);
-    onSubmit(submitData);
+    visibleOnWebsite: form.visibleOnWebsite,
   };
+  
+  if (hasDiscount && form.discount) {
+    submitData.discount = form.discount;
+  }
+  
+  console.log('Submitting form:', submitData);
+
+  onSubmit({
+    ...submitData,
+    newFiles: form.media.filter(m => !m.isExisting && m.file) 
+  } as any);
+};
 
   const addMediaSlot = (type: 'image' | 'video') => {
-    if (form.media.length >= 2) return;
+    if (form.media.length >= 2) {
+      toast({ 
+        title: 'Limit Reached', 
+        description: 'Maximum 2 media files allowed', 
+        variant: 'destructive' 
+      });
+      return;
+    }
     const newMedia: MediaFile = {
-      id: `media-${Date.now()}`,
+      id: `temp-${Date.now()}`,
       url: '',
       type,
     };
@@ -108,25 +162,83 @@ const ProductFormDialog = ({ open, onOpenChange, editingProduct, submitting, onS
   };
 
   const handleFileSelect = (index: number, file: File) => {
-  console.log('File selected:', file.name, file.type, file.size);
-  const previewUrl = URL.createObjectURL(file);
-  const updated = [...form.media];
-  updated[index] = {
-    ...updated[index],
-    file,
-    previewUrl,
-    url: previewUrl, // Temporary URL for preview
+    // Check file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast({ 
+        title: 'File Too Large', 
+        description: 'Maximum file size is 5MB', 
+        variant: 'destructive' 
+      });
+      return;
+    }
+    
+    console.log('File selected:', file.name);
+    const previewUrl = URL.createObjectURL(file);
+    const updated = [...form.media];
+    updated[index] = {
+      ...updated[index],
+      file,
+      previewUrl,
+      url: previewUrl,
+      isExisting: false,
+    };
+    setForm({ ...form, media: updated });
+    
+    // Clear any error for this media
+    if (imageErrors[updated[index].id]) {
+      setImageErrors(prev => {
+        const newErrors = { ...prev };
+        delete newErrors[updated[index].id];
+        return newErrors;
+      });
+    }
   };
-  setForm({ ...form, media: updated });
-};
 
-  const removeMedia = (index: number) => {
+  const handleDeleteExistingImage = async (mediaId: string, index: number) => {
+    if (!editingProduct) return;
+    
+    setDeletingMedia(mediaId);
+    try {
+      // Call API to delete the media immediately
+      await productsApi.deleteMedia(mediaId);
+      
+      // Remove from local state
+      const updatedMedia = form.media.filter((_, i) => i !== index);
+      setForm({ ...form, media: updatedMedia });
+      
+      toast({ 
+        title: 'Success', 
+        description: 'Image deleted successfully. You can now add a new one.',
+      });
+    } catch (err: any) {
+      toast({ 
+        title: 'Error', 
+        description: err.message || 'Failed to delete image', 
+        variant: 'destructive' 
+      });
+    } finally {
+      setDeletingMedia(null);
+    }
+  };
+
+  const removeNewMedia = (index: number) => {
     const media = form.media[index];
-    // Clean up object URL to prevent memory leaks
-    if (media.previewUrl) {
+    
+    // Clean up object URL if it's a blob
+    if (media.previewUrl && media.previewUrl.startsWith('blob:')) {
       URL.revokeObjectURL(media.previewUrl);
     }
-    setForm({ ...form, media: form.media.filter((_, i) => i !== index) });
+    
+    // Remove from state
+    setForm({
+      ...form,
+      media: form.media.filter((_, i) => i !== index)
+    });
+  };
+
+  const handleImageError = (mediaId: string) => {
+    console.log('Image failed to load:', mediaId);
+    setImageErrors(prev => ({ ...prev, [mediaId]: true }));
   };
 
   return (
@@ -135,6 +247,7 @@ const ProductFormDialog = ({ open, onOpenChange, editingProduct, submitting, onS
         <DialogHeader>
           <DialogTitle>{editingProduct ? 'Edit Product' : 'Add Product'}</DialogTitle>
         </DialogHeader>
+        
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Name */}
           <div className="space-y-2">
@@ -148,6 +261,7 @@ const ProductFormDialog = ({ open, onOpenChange, editingProduct, submitting, onS
             />
           </div>
 
+          {/* Description */}
           <div className="space-y-2">
             <Label>Description</Label>
             <Input
@@ -162,12 +276,16 @@ const ProductFormDialog = ({ open, onOpenChange, editingProduct, submitting, onS
           {/* Category */}
           <div className="space-y-2">
             <Label>Category</Label>
-            <Select value={form.category} onValueChange={v => setForm({ ...form, category: v as ProductCategory })}>
+            <Select 
+              value={form.category} 
+              onValueChange={v => setForm({ ...form, category: v })}
+              disabled={loadingCategories}
+            >
               <SelectTrigger className="rounded-xl">
-                <SelectValue />
+                <SelectValue placeholder={loadingCategories ? "Loading categories..." : "Select a category"} />
               </SelectTrigger>
               <SelectContent>
-                {CATEGORIES.map(cat => (
+                {categories.map(cat => (
                   <SelectItem key={cat.value} value={cat.value}>
                     {cat.icon} {cat.label}
                   </SelectItem>
@@ -232,33 +350,79 @@ const ProductFormDialog = ({ open, onOpenChange, editingProduct, submitting, onS
           <div className="space-y-2">
             <Label className="flex items-center gap-1.5">
               <Image className="h-3.5 w-3.5" />
-              Media (max 2)
+              Media ({form.media.length}/2)
             </Label>
-            <div className="space-y-2">
+            
+            <div className="space-y-3">
               {form.media.map((m, i) => (
-                <div key={m.id} className="space-y-2">
-                  <div className="flex items-center gap-2 bg-secondary rounded-xl p-2">
+                <div key={m.id} className="border border-border rounded-xl p-3 space-y-2">
+                  <div className="flex items-center gap-2">
                     {m.type === 'image' ? (
                       <Image className="h-4 w-4 text-info shrink-0" />
                     ) : (
                       <Film className="h-4 w-4 text-info shrink-0" />
                     )}
-                    <input
-                      type="file"
-                      accept={m.type === 'image' ? 'image/*' : 'video/*'}
-                      onChange={e => {
-                        const file = e.target.files?.[0];
-                        if (file) {
-                          handleFileSelect(i, file);
-                        }
-                      }}
-                      className="h-8 text-xs flex-1 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90"
-                    />
-                    <button type="button" onClick={() => removeMedia(i)} className="p-1 text-muted-foreground hover:text-destructive">
-                      <X className="h-3.5 w-3.5" />
-                    </button>
+                    
+                    {/* For existing images, show thumbnail */}
+                    {m.isExisting && m.previewUrl && m.type === 'image' && !imageErrors[m.id] && (
+                      <div className="relative h-12 w-12 rounded-lg overflow-hidden border border-border flex-shrink-0">
+                        <img 
+                          src={m.previewUrl} 
+                          alt="Preview" 
+                          className="h-full w-full object-cover"
+                          onError={() => handleImageError(m.id)}
+                        />
+                      </div>
+                    )}
+                    
+                    {/* For new images or fallback */}
+                    {!m.isExisting ? (
+                      <input
+                        type="file"
+                        accept={m.type === 'image' ? 'image/*' : 'video/*'}
+                        onChange={e => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            handleFileSelect(i, file);
+                          }
+                        }}
+                        className="h-8 text-xs flex-1 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90"
+                      />
+                    ) : (
+                      <span className="text-xs text-muted-foreground flex-1 truncate">
+                        {m.url?.split('/').pop() || 'Image uploaded'}
+                      </span>
+                    )}
+                    
+                    {/* Delete button - different for existing vs new */}
+                    {m.isExisting ? (
+                      <button 
+                        type="button" 
+                        onClick={() => handleDeleteExistingImage(m.id, i)}
+                        disabled={deletingMedia === m.id}
+                        className="p-1 text-muted-foreground hover:text-destructive disabled:opacity-50"
+                        title="Delete permanently"
+                      >
+                        {deletingMedia === m.id ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Trash2 className="h-3.5 w-3.5" />
+                        )}
+                      </button>
+                    ) : (
+                      <button 
+                        type="button" 
+                        onClick={() => removeNewMedia(i)}
+                        className="p-1 text-muted-foreground hover:text-destructive"
+                        title="Remove"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    )}
                   </div>
-                  {m.previewUrl && m.type === 'image' && (
+                  
+                  {/* Preview for newly selected images */}
+                  {!m.isExisting && m.previewUrl && m.type === 'image' && (
                     <div className="relative h-20 w-20 rounded-lg overflow-hidden border border-border">
                       <img 
                         src={m.previewUrl} 
@@ -269,13 +433,27 @@ const ProductFormDialog = ({ open, onOpenChange, editingProduct, submitting, onS
                   )}
                 </div>
               ))}
+              
+              {/* Add Media Buttons */}
               {form.media.length < 2 && (
                 <div className="flex gap-2">
-                  <Button type="button" variant="outline" size="sm" className="rounded-lg text-xs flex-1" onClick={() => addMediaSlot('image')}>
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    size="sm" 
+                    className="rounded-lg text-xs flex-1" 
+                    onClick={() => addMediaSlot('image')}
+                  >
                     <Image className="h-3 w-3 mr-1" />
                     Add Image
                   </Button>
-                  <Button type="button" variant="outline" size="sm" className="rounded-lg text-xs flex-1" onClick={() => addMediaSlot('video')}>
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    size="sm" 
+                    className="rounded-lg text-xs flex-1" 
+                    onClick={() => addMediaSlot('video')}
+                  >
                     <Film className="h-3 w-3 mr-1" />
                     Add Video
                   </Button>
@@ -364,7 +542,7 @@ const ProductFormDialog = ({ open, onOpenChange, editingProduct, submitting, onS
 
           <Button
             type="submit"
-            disabled={submitting}
+            disabled={submitting || !form.category}
             className="w-full h-12 rounded-xl gradient-gold text-accent-foreground font-semibold hover:opacity-90"
           >
             {submitting ? 'Saving...' : editingProduct ? 'Update Product' : 'Add Product'}

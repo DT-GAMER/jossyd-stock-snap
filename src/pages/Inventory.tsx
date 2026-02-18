@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import Layout from '@/components/Layout';
 import { productsApi, formatCurrency, getDiscountedPrice } from '@/lib/api';
-import { CATEGORIES, type Product, type ProductFormData, type ProductCategory, type ProductMedia, type ProductDiscount } from '@/types';
+import { DEFAULT_CATEGORIES, type Product, type ProductFormData, type ProductCategory, type ProductMedia, type ProductDiscount } from '@/types';
 import { Plus, Search, Edit2, Trash2, X, Package, Image, Film, Eye, EyeOff, Percent, Tag } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -41,16 +41,16 @@ const Inventory = () => {
   };
 
   const filtered = products.filter(p => {
-  const matchesSearch = p.name.toLowerCase().includes(search.toLowerCase());
-  
-  // Convert both to lowercase for comparison
-  const productCategory = p.category?.toLowerCase();
-  const filterCategory = categoryFilter.toLowerCase();
-  
-  const matchesCategory = categoryFilter === 'all' || productCategory === filterCategory;
-  
-  return matchesSearch && matchesCategory;
-});
+    const matchesSearch = p.name.toLowerCase().includes(search.toLowerCase());
+
+    // Convert both to lowercase for comparison
+    const productCategory = p.category?.toLowerCase();
+    const filterCategory = categoryFilter.toLowerCase();
+
+    const matchesCategory = categoryFilter === 'all' || productCategory === filterCategory;
+
+    return matchesSearch && matchesCategory;
+  });
 
   const openAddDialog = () => {
     setEditingProduct(null);
@@ -67,14 +67,13 @@ const Inventory = () => {
     setDeleteDialogOpen(true);
   };
 
-  const handleSubmit = async (form: ProductFormData) => {
+  const handleSubmit = async (form: ProductFormData & { newFiles?: any[] }) => {
     setSubmitting(true);
     try {
       if (editingProduct) {
         console.log('🔄 Updating product:', editingProduct.id);
         console.log('📝 With data:', form);
 
-        // Make sure we're passing the ID correctly
         await productsApi.update(editingProduct.id, form, editingProduct);
         toast({ title: 'Updated!', description: `${form.name} has been updated` });
       } else {
@@ -109,7 +108,7 @@ const Inventory = () => {
   };
 
   const getCategoryEmoji = (category: string) => {
-    return CATEGORIES.find(c => c.value === category)?.icon || '📦';
+    return DEFAULT_CATEGORIES.find(c => c.value === category)?.icon || '📦';
   };
 
   return (
@@ -144,19 +143,19 @@ const Inventory = () => {
           <button
             onClick={() => setCategoryFilter('all')}
             className={`px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all ${categoryFilter === 'all'
-                ? 'bg-primary text-primary-foreground'
-                : 'bg-secondary text-secondary-foreground'
+              ? 'bg-primary text-primary-foreground'
+              : 'bg-secondary text-secondary-foreground'
               }`}
           >
             All
           </button>
-          {CATEGORIES.map(cat => (
+          {DEFAULT_CATEGORIES.map(cat => (
             <button
               key={cat.value}
               onClick={() => setCategoryFilter(cat.value)}
               className={`px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all ${categoryFilter === cat.value
-                  ? 'bg-primary text-primary-foreground'
-                  : 'bg-secondary text-secondary-foreground'
+                ? 'bg-primary text-primary-foreground'
+                : 'bg-secondary text-secondary-foreground'
                 }`}
             >
               {cat.icon} {cat.label}

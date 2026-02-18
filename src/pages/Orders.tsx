@@ -2,7 +2,10 @@ import { useState, useEffect } from 'react';
 import Layout from '@/components/Layout';
 import { ordersApi, formatCurrency } from '@/lib/api';
 import type { Order, OrderStatus } from '@/types';
-import { Search, X, Package, Phone, Clock, CheckCircle2, Ban, CreditCard, ChevronRight, AlertCircle } from 'lucide-react';
+import { 
+  Search, X, Package, Phone, Clock, CheckCircle2, Ban, 
+  CreditCard, ChevronRight, AlertCircle, Download, Receipt 
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
@@ -33,6 +36,7 @@ const Orders = () => {
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
   const [updating, setUpdating] = useState(false);
+  const [downloading, setDownloading] = useState<string | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -42,6 +46,7 @@ const Orders = () => {
   const loadOrders = async () => {
     try {
       const data = await ordersApi.getAll();
+      console.log('📦 Loaded orders:', data);
       setOrders(data);
     } catch (err: any) {
       toast({ title: 'Error', description: err.message, variant: 'destructive' });
@@ -61,6 +66,7 @@ const Orders = () => {
     setUpdating(true);
     try {
       const updated = await ordersApi.updateStatus(orderId, newStatus);
+      console.log('📦 Updated order:', updated);
       setOrders(prev => prev.map(o => o.id === orderId ? updated : o));
       setSelectedOrder(updated);
       toast({
@@ -93,7 +99,42 @@ const Orders = () => {
     }
   };
 
+  const handleDownloadReceipt = async (orderNumber: string) => {
+    setDownloading(orderNumber);
+    try {
+      const blob = await ordersApi.downloadReceipt(orderNumber);
+      
+      // Create download link
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `receipt-${orderNumber}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+      
+      toast({ 
+        title: 'Success', 
+        description: 'Receipt downloaded successfully' 
+      });
+    } catch (err: any) {
+      toast({ 
+        title: 'Error', 
+        description: err.message || 'Failed to download receipt', 
+        variant: 'destructive' 
+      });
+    } finally {
+      setDownloading(null);
+    }
+  };
+
   const pendingCount = orders.filter(o => o.status === 'pending').length;
+
+  // Helper function to normalize status
+  const getNormalizedStatus = (status: string): string => {
+    return status?.toLowerCase() || 'pending';
+  };
 
   return (
     <Layout
@@ -158,15 +199,14 @@ const Orders = () => {
       ) : (
         <div className="space-y-2">
           {filtered.map((order, index) => {
-            const config = statusConfig[order.status] || statusConfig.pending;
+            const normalizedStatus = getNormalizedStatus(order.status);
+            const config = statusConfig[normalizedStatus] || statusConfig.pending;
             const StatusIcon = config.icon;
             
             return (
               <button
                 key={order.id}
-                onClick={() => {
-                  setSelectedOrder(order);
-                }}
+                onClick={() => setSelectedOrder(order)}
                 className="w-full bg-card rounded-xl p-3 shadow-card text-left hover:shadow-card-hover transition-shadow animate-fade-in"
                 style={{ animationDelay: `${index * 40}ms` }}
               >
@@ -200,7 +240,8 @@ const Orders = () => {
       <Dialog open={!!selectedOrder} onOpenChange={() => setSelectedOrder(null)}>
         <DialogContent className="max-w-sm mx-auto rounded-2xl max-h-[90vh] overflow-y-auto">
           {selectedOrder && (() => {
-            const config = statusConfig[selectedOrder.status] || statusConfig.pending;
+            const normalizedStatus = getNormalizedStatus(selectedOrder.status);
+            const config = statusConfig[normalizedStatus] || statusConfig.pending;
             const StatusIcon = config.icon;
             
             return (
@@ -257,8 +298,8 @@ const Orders = () => {
                     <span className="text-xl font-bold text-foreground">{formatCurrency(selectedOrder.totalAmount)}</span>
                   </div>
 
-                  {/* Actions based on status */}
-                  {selectedOrder.status === 'pending' && (
+                  {/* Actions based on normalized status */}
+                  {normalizedStatus === 'pending' && (
                     <div className="space-y-2">
                       <Button
                         onClick={() => handleUpdateStatus(selectedOrder.id, 'paid')}
@@ -279,24 +320,50 @@ const Orders = () => {
                     </div>
                   )}
 
-                  {selectedOrder.status === 'paid' && (
-                    <Button
-                      onClick={() => handleUpdateStatus(selectedOrder.id, 'completed')}
-                      disabled={updating}
-                      className="w-full h-12 rounded-xl bg-success text-success-foreground font-semibold hover:opacity-90"
-                    >
-                      {updating ? 'Updating...' : '📦 Mark as Completed'}
-                    </Button>
-                  )}
-
-                  {selectedOrder.status === 'completed' && (
-                    <div className="bg-success-light rounded-xl p-4 text-center">
-                      <CheckCircle2 className="h-8 w-8 text-success mx-auto mb-2" />
-                      <p className="text-sm font-medium text-success-foreground">Order Completed</p>
+                  {normalizedStatus === 'paid' && (
+                    <div className="space-y-2">
+                      <Button
+                        onClick={() => handleUpdateStatus(selectedOrder.id, 'completed')}
+                        disabled={updating}
+                        className="w-full h-12 rounded-xl bg-success text-success-foreground font-semibold hover:opacity-90"
+                      >
+                        {updating ? 'Updating...' : '📦 Mark as Completed'}
+                      </Button>
+                      
+                      {/* Receipt Download Button */}
+                      <Button
+                        onClick={() => handleDownloadReceipt(selectedOrder.orderNumber)}
+                        disabled={downloading === selectedOrder.orderNumber}
+                        variant="outline"
+                        className="w-full h-12 rounded-xl border-info text-info hover:bg-info/10 font-semibold"
+                      >
+                        <Download className="h-4 w-4 mr-2" />
+                        {downloading === selectedOrder.orderNumber ? 'Downloading...' : 'Download Receipt'}
+                      </Button>
                     </div>
                   )}
 
-                  {selectedOrder.status === 'cancelled' && (
+                  {normalizedStatus === 'completed' && (
+                    <div className="space-y-2">
+                      <div className="bg-success-light rounded-xl p-4 text-center">
+                        <CheckCircle2 className="h-8 w-8 text-success mx-auto mb-2" />
+                        <p className="text-sm font-medium text-success-foreground">Order Completed</p>
+                      </div>
+                      
+                      {/* Receipt Download Button for completed orders too */}
+                      <Button
+                        onClick={() => handleDownloadReceipt(selectedOrder.orderNumber)}
+                        disabled={downloading === selectedOrder.orderNumber}
+                        variant="outline"
+                        className="w-full h-12 rounded-xl border-info text-info hover:bg-info/10 font-semibold"
+                      >
+                        <Download className="h-4 w-4 mr-2" />
+                        {downloading === selectedOrder.orderNumber ? 'Downloading...' : 'Download Receipt'}
+                      </Button>
+                    </div>
+                  )}
+
+                  {normalizedStatus === 'cancelled' && (
                     <div className="bg-destructive/10 rounded-xl p-4 text-center">
                       <Ban className="h-8 w-8 text-destructive mx-auto mb-2" />
                       <p className="text-sm font-medium text-destructive">Order Cancelled</p>

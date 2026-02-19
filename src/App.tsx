@@ -12,6 +12,7 @@ import Orders from "./pages/Orders";
 import Reports from "./pages/Reports";
 import NotFound from "./pages/NotFound";
 import SalesHistory from "./pages/SalesHistory";
+import Profile from "./pages/Profile";
 
 const queryClient = new QueryClient();
 
@@ -36,6 +37,7 @@ const App = () => (
           <Route path="/sales/history" element={<ProtectedRoute><SalesHistory /></ProtectedRoute>} />
           <Route path="/orders" element={<ProtectedRoute><Orders /></ProtectedRoute>} />
           <Route path="/reports" element={<ProtectedRoute><Reports /></ProtectedRoute>} />
+          <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>

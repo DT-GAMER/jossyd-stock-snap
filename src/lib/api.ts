@@ -836,6 +836,99 @@ export const reportsApi = {
   },
 };
 
+// ============ PROFILE ENDPOINTS ============
+
+// Add to your existing api.ts file
+
+export interface UserProfile {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  bankName: string;
+  accountName: string;
+  accountNumber: string;
+}
+
+export const profileApi = {
+  // Get current user profile
+  getProfile: async (): Promise<UserProfile> => {
+    if (USE_MOCK) {
+      return {
+        id: "f61b2ace-67d4-4a56-8bfa-0f9bd3a4122c",
+        name: "Jossy Diva",
+        email: "admin@jossydiva.com",
+        role: "ADMIN",
+        bankName: "Access Bank",
+        accountName: "Jossy Diva Collections",
+        accountNumber: "0123456789",
+      };
+    }
+
+    const response = await apiRequest<any>('/auth/me');
+    console.log('📦 Profile response:', response);
+    
+    const profileData = response.data || response;
+    
+    return {
+      id: profileData.id,
+      name: profileData.name,
+      email: profileData.email,
+      role: profileData.role,
+      bankName: profileData.bankName,
+      accountName: profileData.accountName,
+      accountNumber: profileData.accountNumber,
+    };
+  },
+
+  // Update profile (PUT - full update)
+  updateProfile: async (profile: Partial<UserProfile>): Promise<UserProfile> => {
+    if (USE_MOCK) {
+      return {
+        id: "f61b2ace-67d4-4a56-8bfa-0f9bd3a4122c",
+        name: profile.name || "Jossy Diva",
+        email: profile.email || "admin@jossydiva.com",
+        role: "ADMIN",
+        bankName: profile.bankName || "Access Bank",
+        accountName: profile.accountName || "Jossy Diva Collections",
+        accountNumber: profile.accountNumber || "0123456789",
+      };
+    }
+
+    const response = await apiRequest<any>('/auth/me', {
+      method: 'PUT',
+      body: JSON.stringify(profile),
+    });
+    
+    const profileData = response.data || response;
+    return profileData;
+  },
+
+  // Patch profile (PATCH - partial update)
+  patchProfile: async (profile: Partial<UserProfile>): Promise<UserProfile> => {
+    if (USE_MOCK) {
+      await delay(500);
+      return {
+        id: "f61b2ace-67d4-4a56-8bfa-0f9bd3a4122c",
+        name: profile.name || "Jossy Diva",
+        email: profile.email || "admin@jossydiva.com",
+        role: "ADMIN",
+        bankName: profile.bankName || "Access Bank",
+        accountName: profile.accountName || "Jossy Diva Collections",
+        accountNumber: profile.accountNumber || "0123456789",
+      };
+    }
+
+    const response = await apiRequest<any>('/auth/me', {
+      method: 'PATCH',
+      body: JSON.stringify(profile),
+    });
+    
+    const profileData = response.data || response;
+    return profileData;
+  },
+};
+
 
 // Currency formatter for Naira
 export const formatCurrency = (amount: number): string => {

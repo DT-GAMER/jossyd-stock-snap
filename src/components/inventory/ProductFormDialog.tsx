@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
 
-
+// Extended type to include File objects and preview URLs
 interface MediaFile extends ProductMedia {
   file?: File;
   previewUrl?: string;
@@ -20,6 +20,7 @@ interface MediaFile extends ProductMedia {
 
 interface ProductFormDataWithFiles extends Omit<ProductFormData, 'media'> {
   media: MediaFile[];
+  newFiles?: { file: File; type: string }[];
 }
 
 const emptyForm: ProductFormDataWithFiles = {
@@ -38,7 +39,7 @@ interface ProductFormDialogProps {
   onOpenChange: (open: boolean) => void;
   editingProduct: Product | null;
   submitting: boolean;
-  onSubmit: (form: ProductFormData) => void;
+  onSubmit: (form: ProductFormData & { newFiles?: { file: File; type: string }[] }) => void;
 }
 
 const ProductFormDialog = ({ open, onOpenChange, editingProduct, submitting, onSubmit }: ProductFormDialogProps) => {
@@ -74,14 +75,14 @@ const ProductFormDialog = ({ open, onOpenChange, editingProduct, submitting, onS
   useEffect(() => {
     if (open && editingProduct) {
       console.log('✏️ Editing product:', editingProduct);
-      
+
       // Transform media to include preview URLs
       const mediaWithPreviews = (editingProduct.media || []).map(m => ({
         ...m,
         previewUrl: m.url,
         isExisting: true,
       }));
-      
+
       setForm({
         name: editingProduct.name || '',
         description: editingProduct.description || '',
@@ -93,7 +94,7 @@ const ProductFormDialog = ({ open, onOpenChange, editingProduct, submitting, onS
         visibleOnWebsite: editingProduct.visibleOnWebsite || false,
         discount: editingProduct.discount,
       });
-      
+
       setHasDiscount(!!editingProduct.discount);
       setImageErrors({});
     } else if (open && !editingProduct) {
@@ -104,52 +105,63 @@ const ProductFormDialog = ({ open, onOpenChange, editingProduct, submitting, onS
   }, [open, editingProduct]);
 
   const handleSubmit = (e: React.FormEvent) => {
-  e.preventDefault();
-  
-  if (!form.category) {
-    toast({ 
-      title: 'Error', 
-      description: 'Please select a category', 
-      variant: 'destructive' 
-    });
-    return;
-  }
-  
-  const submitData: ProductFormData = {
-    name: form.name,
-    description: form.description,
-    category: form.category,
-    costPrice: form.costPrice,
-    sellingPrice: form.sellingPrice,
-    quantity: form.quantity,
-    media: form.media
-      .filter(m => m.isExisting) 
+    e.preventDefault();
+
+    if (!form.category) {
+      toast({
+        title: 'Error',
+        description: 'Please select a category',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    // Prepare existing media (keep them)
+    const existingMedia = form.media
+      .filter(m => m.isExisting)
       .map(m => ({
         id: m.id!,
         url: m.url!,
         type: m.type
-      })),
-    visibleOnWebsite: form.visibleOnWebsite,
-  };
-  
-  if (hasDiscount && form.discount) {
-    submitData.discount = form.discount;
-  }
-  
-  console.log('Submitting form:', submitData);
+      }));
 
-  onSubmit({
-    ...submitData,
-    newFiles: form.media.filter(m => !m.isExisting && m.file) 
-  } as any);
-};
+    // Prepare new files
+    const newFiles = form.media
+      .filter(m => !m.isExisting && m.file)
+      .map(m => ({
+        file: m.file!,
+        type: m.type
+      }));
+
+    const submitData: ProductFormData = {
+      name: form.name,
+      description: form.description,
+      category: form.category,
+      costPrice: form.costPrice,
+      sellingPrice: form.sellingPrice,
+      quantity: form.quantity,
+      media: existingMedia,
+      visibleOnWebsite: form.visibleOnWebsite,
+    };
+
+    if (hasDiscount && form.discount) {
+      submitData.discount = form.discount;
+    }
+
+    console.log('Submitting form:', { submitData, newFiles });
+
+    onSubmit({
+      ...submitData,
+      newFiles
+    });
+  };
 
   const addMediaSlot = (type: 'image' | 'video') => {
     if (form.media.length >= 2) {
-      toast({ 
-        title: 'Limit Reached', 
-        description: 'Maximum 2 media files allowed', 
-        variant: 'destructive' 
+      toast({
+        title: 'Limit Reached',
+        description: 'Maximum 2 media files allowed',
+        variant: 'destructive'
       });
       return;
     }
@@ -164,14 +176,14 @@ const ProductFormDialog = ({ open, onOpenChange, editingProduct, submitting, onS
   const handleFileSelect = (index: number, file: File) => {
     // Check file size (max 5MB)
     if (file.size > 5 * 1024 * 1024) {
-      toast({ 
-        title: 'File Too Large', 
-        description: 'Maximum file size is 5MB', 
-        variant: 'destructive' 
+      toast({
+        title: 'File Too Large',
+        description: 'Maximum file size is 5MB',
+        variant: 'destructive'
       });
       return;
     }
-    
+
     console.log('File selected:', file.name);
     const previewUrl = URL.createObjectURL(file);
     const updated = [...form.media];
@@ -183,7 +195,7 @@ const ProductFormDialog = ({ open, onOpenChange, editingProduct, submitting, onS
       isExisting: false,
     };
     setForm({ ...form, media: updated });
-    
+
     // Clear any error for this media
     if (imageErrors[updated[index].id]) {
       setImageErrors(prev => {
@@ -196,25 +208,25 @@ const ProductFormDialog = ({ open, onOpenChange, editingProduct, submitting, onS
 
   const handleDeleteExistingImage = async (mediaId: string, index: number) => {
     if (!editingProduct) return;
-    
+
     setDeletingMedia(mediaId);
     try {
       // Call API to delete the media immediately
       await productsApi.deleteMedia(mediaId);
-      
+
       // Remove from local state
       const updatedMedia = form.media.filter((_, i) => i !== index);
       setForm({ ...form, media: updatedMedia });
-      
-      toast({ 
-        title: 'Success', 
+
+      toast({
+        title: 'Success',
         description: 'Image deleted successfully. You can now add a new one.',
       });
     } catch (err: any) {
-      toast({ 
-        title: 'Error', 
-        description: err.message || 'Failed to delete image', 
-        variant: 'destructive' 
+      toast({
+        title: 'Error',
+        description: err.message || 'Failed to delete image',
+        variant: 'destructive'
       });
     } finally {
       setDeletingMedia(null);
@@ -223,12 +235,12 @@ const ProductFormDialog = ({ open, onOpenChange, editingProduct, submitting, onS
 
   const removeNewMedia = (index: number) => {
     const media = form.media[index];
-    
+
     // Clean up object URL if it's a blob
     if (media.previewUrl && media.previewUrl.startsWith('blob:')) {
       URL.revokeObjectURL(media.previewUrl);
     }
-    
+
     // Remove from state
     setForm({
       ...form,
@@ -247,7 +259,7 @@ const ProductFormDialog = ({ open, onOpenChange, editingProduct, submitting, onS
         <DialogHeader>
           <DialogTitle>{editingProduct ? 'Edit Product' : 'Add Product'}</DialogTitle>
         </DialogHeader>
-        
+
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Name */}
           <div className="space-y-2">
@@ -276,8 +288,8 @@ const ProductFormDialog = ({ open, onOpenChange, editingProduct, submitting, onS
           {/* Category */}
           <div className="space-y-2">
             <Label>Category</Label>
-            <Select 
-              value={form.category} 
+            <Select
+              value={form.category}
               onValueChange={v => setForm({ ...form, category: v })}
               disabled={loadingCategories}
             >
@@ -352,106 +364,102 @@ const ProductFormDialog = ({ open, onOpenChange, editingProduct, submitting, onS
               <Image className="h-3.5 w-3.5" />
               Media ({form.media.length}/2)
             </Label>
-            
-            <div className="space-y-3">
-              {form.media.map((m, i) => (
-                <div key={m.id} className="border border-border rounded-xl p-3 space-y-2">
-                  <div className="flex items-center gap-2">
-                    {m.type === 'image' ? (
-                      <Image className="h-4 w-4 text-info shrink-0" />
-                    ) : (
-                      <Film className="h-4 w-4 text-info shrink-0" />
-                    )}
-                    
-                    {/* For existing images, show thumbnail */}
-                    {m.isExisting && m.previewUrl && m.type === 'image' && !imageErrors[m.id] && (
-                      <div className="relative h-12 w-12 rounded-lg overflow-hidden border border-border flex-shrink-0">
-                        <img 
-                          src={m.previewUrl} 
-                          alt="Preview" 
-                          className="h-full w-full object-cover"
+
+            <div className="space-y-4">
+              {form.media.map((m, i) => {
+                console.log('Rendering media:', m.id, m.previewUrl, m.isExisting);
+                return (
+                  <div key={m.id} className="border border-border rounded-xl p-3 space-y-3">
+                    <div className="flex items-center gap-2">
+                      {m.type === 'image' ? (
+                        <Image className="h-4 w-4 text-info shrink-0" />
+                      ) : (
+                        <Film className="h-4 w-4 text-info shrink-0" />
+                      )}
+
+                      {/* File input for new images, filename display for existing */}
+                      {!m.isExisting ? (
+                        <input
+                          type="file"
+                          accept={m.type === 'image' ? 'image/*' : 'video/*'}
+                          onChange={e => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              handleFileSelect(i, file);
+                            }
+                          }}
+                          className="h-8 text-xs flex-1 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90"
+                        />
+                      ) : (
+                        <span className="text-xs text-muted-foreground flex-1 truncate">
+                          {m.url?.split('/').pop() || 'Image uploaded'}
+                        </span>
+                      )}
+
+                      {/* Delete button */}
+                      {m.isExisting ? (
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteExistingImage(m.id, i)}
+                          disabled={deletingMedia === m.id}
+                          className="p-1 text-muted-foreground hover:text-destructive disabled:opacity-50"
+                          title="Delete permanently"
+                        >
+                          {deletingMedia === m.id ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <Trash2 className="h-3.5 w-3.5" />
+                          )}
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => removeNewMedia(i)}
+                          className="p-1 text-muted-foreground hover:text-destructive"
+                          title="Remove"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </div>
+
+                    {m.type === 'image' && m.previewUrl && !imageErrors[m.id] && (
+                      <div className="relative w-full rounded-lg overflow-hidden border border-border bg-muted">
+                        <img
+                          src={m.previewUrl}
+                          alt="Preview"
+                          className="w-full h-auto object-contain max-h-48"
                           onError={() => handleImageError(m.id)}
                         />
+                        {m.isExisting && (
+                          <div className="absolute top-2 right-2 bg-black/50 text-white text-xs px-2 py-1 rounded-full">
+                            Existing
+                          </div>
+                        )}
                       </div>
                     )}
-                    
-                    {/* For new images or fallback */}
-                    {!m.isExisting ? (
-                      <input
-                        type="file"
-                        accept={m.type === 'image' ? 'image/*' : 'video/*'}
-                        onChange={e => {
-                          const file = e.target.files?.[0];
-                          if (file) {
-                            handleFileSelect(i, file);
-                          }
-                        }}
-                        className="h-8 text-xs flex-1 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90"
-                      />
-                    ) : (
-                      <span className="text-xs text-muted-foreground flex-1 truncate">
-                        {m.url?.split('/').pop() || 'Image uploaded'}
-                      </span>
-                    )}
-                    
-                    {/* Delete button - different for existing vs new */}
-                    {m.isExisting ? (
-                      <button 
-                        type="button" 
-                        onClick={() => handleDeleteExistingImage(m.id, i)}
-                        disabled={deletingMedia === m.id}
-                        className="p-1 text-muted-foreground hover:text-destructive disabled:opacity-50"
-                        title="Delete permanently"
-                      >
-                        {deletingMedia === m.id ? (
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        ) : (
-                          <Trash2 className="h-3.5 w-3.5" />
-                        )}
-                      </button>
-                    ) : (
-                      <button 
-                        type="button" 
-                        onClick={() => removeNewMedia(i)}
-                        className="p-1 text-muted-foreground hover:text-destructive"
-                        title="Remove"
-                      >
-                        <X className="h-3.5 w-3.5" />
-                      </button>
-                    )}
                   </div>
-                  
-                  {/* Preview for newly selected images */}
-                  {!m.isExisting && m.previewUrl && m.type === 'image' && (
-                    <div className="relative h-20 w-20 rounded-lg overflow-hidden border border-border">
-                      <img 
-                        src={m.previewUrl} 
-                        alt="Preview" 
-                        className="h-full w-full object-cover"
-                      />
-                    </div>
-                  )}
-                </div>
-              ))}
-              
+                )
+              })}
+
               {/* Add Media Buttons */}
               {form.media.length < 2 && (
                 <div className="flex gap-2">
-                  <Button 
-                    type="button" 
-                    variant="outline" 
-                    size="sm" 
-                    className="rounded-lg text-xs flex-1" 
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="rounded-lg text-xs flex-1"
                     onClick={() => addMediaSlot('image')}
                   >
                     <Image className="h-3 w-3 mr-1" />
                     Add Image
                   </Button>
-                  <Button 
-                    type="button" 
-                    variant="outline" 
-                    size="sm" 
-                    className="rounded-lg text-xs flex-1" 
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="rounded-lg text-xs flex-1"
                     onClick={() => addMediaSlot('video')}
                   >
                     <Film className="h-3 w-3 mr-1" />

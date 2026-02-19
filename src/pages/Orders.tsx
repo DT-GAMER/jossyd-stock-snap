@@ -4,10 +4,12 @@ import { ordersApi, formatCurrency } from '@/lib/api';
 import type { Order, OrderStatus } from '@/types';
 import { 
   Search, X, Package, Phone, Clock, CheckCircle2, Ban, 
-  CreditCard, ChevronRight, AlertCircle, Download, Receipt 
+  CreditCard, ChevronRight, AlertCircle, Download, Receipt,
+  Calendar, CalendarRange, Filter, RefreshCw
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
@@ -37,6 +39,14 @@ const Orders = () => {
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
   const [updating, setUpdating] = useState(false);
   const [downloading, setDownloading] = useState<string | null>(null);
+  
+  // Date filter states
+  const [showDateFilters, setShowDateFilters] = useState(false);
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [specificDate, setSpecificDate] = useState('');
+  const [todayFilter, setTodayFilter] = useState(false);
+  
   const { toast } = useToast();
 
   useEffect(() => {
@@ -44,8 +54,21 @@ const Orders = () => {
   }, []);
 
   const loadOrders = async () => {
+    setLoading(true);
     try {
-      const data = await ordersApi.getAll();
+      // Build filter params
+      const params: any = {};
+      
+      if (search) params.search = search;
+      if (statusFilter !== 'all') params.status = statusFilter;
+      if (startDate) params.startDate = startDate;
+      if (endDate) params.endDate = endDate;
+      if (specificDate) params.date = specificDate;
+      if (todayFilter) params.today = true;
+      
+      console.log('📤 Loading orders with params:', params);
+      
+      const data = await ordersApi.getAll(params);
       console.log('📦 Loaded orders:', data);
       setOrders(data);
     } catch (err: any) {
@@ -55,12 +78,24 @@ const Orders = () => {
     }
   };
 
-  const filtered = orders.filter(o => {
-    const matchesSearch = o.orderNumber.toLowerCase().includes(search.toLowerCase()) ||
-      o.customerName.toLowerCase().includes(search.toLowerCase());
-    const matchesStatus = statusFilter === 'all' || o.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
+  const handleApplyFilters = () => {
+    loadOrders();
+    setShowDateFilters(false);
+  };
+
+  const handleClearFilters = () => {
+    setSearch('');
+    setStatusFilter('all');
+    setStartDate('');
+    setEndDate('');
+    setSpecificDate('');
+    setTodayFilter(false);
+    
+    // Reload with no filters
+    setTimeout(() => loadOrders(), 100);
+  };
+
+  const filtered = orders; // Remove client-side filtering since we're using server-side
 
   const handleUpdateStatus = async (orderId: string, newStatus: OrderStatus) => {
     setUpdating(true);
@@ -140,6 +175,16 @@ const Orders = () => {
     <Layout
       title="Orders"
       subtitle={`${orders.length} orders${pendingCount > 0 ? ` • ${pendingCount} pending` : ''}`}
+      headerRight={
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => setShowDateFilters(!showDateFilters)}
+          className={`text-muted-foreground hover:text-primary ${showDateFilters ? 'text-primary' : ''}`}
+        >
+          <Filter className="h-5 w-5" />
+        </Button>
+      }
     >
       {/* Search */}
       <div className="space-y-3 mb-4">
@@ -149,6 +194,7 @@ const Orders = () => {
             placeholder="Search by order # or customer..."
             value={search}
             onChange={e => setSearch(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && loadOrders()}
             className="pl-10 h-11 rounded-xl"
           />
           {search && (
@@ -163,7 +209,10 @@ const Orders = () => {
           {statusFilters.map(f => (
             <button
               key={f.value}
-              onClick={() => setStatusFilter(f.value)}
+              onClick={() => {
+                setStatusFilter(f.value);
+                setTimeout(() => loadOrders(), 100);
+              }}
               className={`px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all ${
                 statusFilter === f.value
                   ? 'bg-primary text-primary-foreground'
@@ -173,6 +222,123 @@ const Orders = () => {
               {f.label}
             </button>
           ))}
+        </div>
+
+        {/* Date Filters */}
+        {showDateFilters && (
+          <div className="bg-card rounded-xl p-4 shadow-card animate-fade-in">
+            <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
+              <Calendar className="h-4 w-4 text-primary" />
+              Date Filters
+            </h3>
+            
+            <div className="space-y-3">
+              {/* Today Filter */}
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="todayFilter"
+                  checked={todayFilter}
+                  onChange={(e) => {
+                    setTodayFilter(e.target.checked);
+                    if (e.target.checked) {
+                      setSpecificDate('');
+                      setStartDate('');
+                      setEndDate('');
+                    }
+                  }}
+                  className="rounded border-border text-primary focus:ring-primary"
+                />
+                <Label htmlFor="todayFilter" className="text-sm cursor-pointer">
+                  Today only
+                </Label>
+              </div>
+
+              {/* Specific Date */}
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">Specific Date</Label>
+                <Input
+                  type="date"
+                  value={specificDate}
+                  onChange={(e) => {
+                    setSpecificDate(e.target.value);
+                    if (e.target.value) {
+                      setTodayFilter(false);
+                      setStartDate('');
+                      setEndDate('');
+                    }
+                  }}
+                  className="rounded-xl h-9 text-sm"
+                />
+              </div>
+
+              {/* Date Range */}
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Start Date</Label>
+                  <Input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => {
+                      setStartDate(e.target.value);
+                      if (e.target.value || endDate) {
+                        setTodayFilter(false);
+                        setSpecificDate('');
+                      }
+                    }}
+                    className="rounded-xl h-9 text-sm"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">End Date</Label>
+                  <Input
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => {
+                      setEndDate(e.target.value);
+                      if (startDate || e.target.value) {
+                        setTodayFilter(false);
+                        setSpecificDate('');
+                      }
+                    }}
+                    className="rounded-xl h-9 text-sm"
+                  />
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-2 pt-2">
+                <Button
+                  onClick={handleApplyFilters}
+                  size="sm"
+                  className="flex-1 rounded-xl gradient-gold text-accent-foreground"
+                >
+                  Apply Filters
+                </Button>
+                <Button
+                  onClick={handleClearFilters}
+                  variant="outline"
+                  size="sm"
+                  className="flex-1 rounded-xl"
+                >
+                  Clear
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Refresh Button */}
+        <div className="flex justify-end">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={loadOrders}
+            className="text-muted-foreground"
+          >
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Refresh
+          </Button>
         </div>
       </div>
 
@@ -221,9 +387,15 @@ const Orders = () => {
                         {config.label}
                       </span>
                     </div>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      {order.customerName} • {order.items.length} item{order.items.length !== 1 ? 's' : ''}
-                    </p>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <p className="text-xs text-muted-foreground">
+                        {order.customerName} • {order.items.length} item{order.items.length !== 1 ? 's' : ''}
+                      </p>
+                      <span className="text-xs text-muted-foreground">•</span>
+                      <p className="text-xs text-muted-foreground">
+                        {new Date(order.createdAt).toLocaleDateString()}
+                      </p>
+                    </div>
                   </div>
                   <div className="text-right flex items-center gap-1">
                     <p className="text-sm font-bold text-foreground">{formatCurrency(order.totalAmount)}</p>

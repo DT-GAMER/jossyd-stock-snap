@@ -452,56 +452,129 @@ export const salesApi = {
 
 // Orders API
 export const ordersApi = {
-  getAll: async (): Promise<Order[]> => {
-    if (USE_MOCK) {
-      await new Promise(r => setTimeout(r, 300));
-      return [...mockOrders].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  getAll: async (params?: { 
+  search?: string; 
+  status?: string; 
+  startDate?: string; 
+  endDate?: string; 
+  date?: string; 
+  today?: boolean;
+}): Promise<Order[]> => {
+  if (USE_MOCK) {
+    await new Promise(r => setTimeout(r, 300));
+    let filtered = [...mockOrders];
+    
+    // Apply mock filters
+    if (params?.search) {
+      const searchLower = params.search.toLowerCase();
+      filtered = filtered.filter(o => 
+        o.orderNumber.toLowerCase().includes(searchLower) ||
+        o.customerName.toLowerCase().includes(searchLower)
+      );
+    }
+    
+    if (params?.status && params.status !== 'all') {
+      filtered = filtered.filter(o => o.status === params.status);
+    }
+    
+    if (params?.today) {
+      const today = new Date().toISOString().split('T')[0];
+      filtered = filtered.filter(o => o.createdAt.startsWith(today));
+    }
+    
+    if (params?.date) {
+      filtered = filtered.filter(o => o.createdAt.startsWith(params.date!));
+    }
+    
+    if (params?.startDate) {
+      filtered = filtered.filter(o => o.createdAt >= params.startDate!);
+    }
+    
+    if (params?.endDate) {
+      filtered = filtered.filter(o => o.createdAt <= params.endDate!);
+    }
+    
+    return filtered.sort((a, b) => 
+      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+  }
+
+  // Build query string from params
+  const queryParams = new URLSearchParams();
+  
+  if (params?.search) {
+    queryParams.append('search', params.search);
+  }
+  
+  if (params?.status && params.status !== 'all') {
+    queryParams.append('status', params.status.toUpperCase());
+  }
+  
+  if (params?.startDate) {
+    queryParams.append('startDate', params.startDate);
+  }
+  
+  if (params?.endDate) {
+    queryParams.append('endDate', params.endDate);
+  }
+  
+  if (params?.date) {
+    queryParams.append('date', params.date);
+  }
+  
+  if (params?.today) {
+    queryParams.append('today', 'true');
+  }
+
+  const queryString = queryParams.toString();
+  const url = queryString ? `/orders?${queryString}` : '/orders';
+  
+  console.log('📤 Fetching orders with URL:', url);
+
+  const response = await apiRequest<any>(url);
+
+  // Handle the response structure (it might be wrapped in a data property)
+  const ordersData = response.data || response;
+
+  if (!Array.isArray(ordersData)) {
+    return [];
+  }
+
+  // Transform each order to match your Order type
+  return ordersData.map((order: any) => {
+    // Map backend status to frontend status
+    let frontendStatus: OrderStatus = 'pending';
+    const backendStatus = order.status?.toUpperCase() || '';
+
+    if (backendStatus === 'PENDING_PAYMENT') {
+      frontendStatus = 'pending';
+    } else if (backendStatus === 'PAID') {
+      frontendStatus = 'paid';
+    } else if (backendStatus === 'COMPLETED') {
+      frontendStatus = 'completed';
+    } else if (backendStatus === 'CANCELLED') {
+      frontendStatus = 'cancelled';
     }
 
-    const response = await apiRequest<any>('/orders');
-
-    // Handle the response structure (it might be wrapped in a data property)
-    const ordersData = response.data || response;
-
-    if (!Array.isArray(ordersData)) {
-      return [];
-    }
-
-    // Transform each order to match your Order type
-    return ordersData.map((order: any) => {
-      // Map backend status to frontend status
-      let frontendStatus: OrderStatus = 'pending';
-      const backendStatus = order.status?.toUpperCase() || '';
-
-      if (backendStatus === 'PENDING_PAYMENT') {
-        frontendStatus = 'pending';  // This should be 'pending', not 'pending_payment'
-      } else if (backendStatus === 'PAID') {
-        frontendStatus = 'paid';
-      } else if (backendStatus === 'COMPLETED') {
-        frontendStatus = 'completed';
-      } else if (backendStatus === 'CANCELLED') {
-        frontendStatus = 'cancelled';
-      }
-
-      return {
-        id: order.id,
-        orderNumber: order.orderNumber,
-        customerName: order.customerName,
-        customerPhone: order.phone || order.customerPhone,
-        items: (order.items || []).map((item: any) => ({
-          productId: item.productId,
-          productName: item.product?.name || item.productName || 'Product',
-          quantity: item.quantity,
-          unitPrice: item.unitPrice || item.priceAtOrder || item.price || 0,
-        })),
-        totalAmount: order.totalAmount,
-        source: (order.source || 'website').toLowerCase(),
-        status: frontendStatus, // Use mapped status
-        createdAt: order.createdAt,
-        updatedAt: order.updatedAt,
-      };
-    });
-  },
+    return {
+      id: order.id,
+      orderNumber: order.orderNumber,
+      customerName: order.customerName,
+      customerPhone: order.phone || order.customerPhone,
+      items: (order.items || []).map((item: any) => ({
+        productId: item.productId,
+        productName: item.product?.name || item.productName || 'Product',
+        quantity: item.quantity,
+        unitPrice: item.unitPrice || item.priceAtOrder || item.price || 0,
+      })),
+      totalAmount: order.totalAmount,
+      source: (order.source || 'website').toLowerCase(),
+      status: frontendStatus,
+      createdAt: order.createdAt,
+      updatedAt: order.updatedAt,
+    };
+  });
+},
 
   updateStatus: async (id: string, status: OrderStatus): Promise<Order> => {
     if (USE_MOCK) {
@@ -906,19 +979,6 @@ export const profileApi = {
 
   // Patch profile (PATCH - partial update)
   patchProfile: async (profile: Partial<UserProfile>): Promise<UserProfile> => {
-    if (USE_MOCK) {
-      await delay(500);
-      return {
-        id: "f61b2ace-67d4-4a56-8bfa-0f9bd3a4122c",
-        name: profile.name || "Jossy Diva",
-        email: profile.email || "admin@jossydiva.com",
-        role: "ADMIN",
-        bankName: profile.bankName || "Access Bank",
-        accountName: profile.accountName || "Jossy Diva Collections",
-        accountNumber: profile.accountNumber || "0123456789",
-      };
-    }
-
     const response = await apiRequest<any>('/auth/me', {
       method: 'PATCH',
       body: JSON.stringify(profile),

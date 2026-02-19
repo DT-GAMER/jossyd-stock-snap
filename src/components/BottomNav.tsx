@@ -1,5 +1,5 @@
 import { NavLink as RouterNavLink, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Package, ShoppingCart, BarChart3, ClipboardList } from 'lucide-react';
+import { LayoutDashboard, Package, ShoppingCart, BarChart3, ClipboardList, User } from 'lucide-react';
 
 const navItems = [
   { to: '/', icon: LayoutDashboard, label: 'Home' },
@@ -7,6 +7,8 @@ const navItems = [
   { to: '/sales', icon: ShoppingCart, label: 'Sales' },
   { to: '/orders', icon: ClipboardList, label: 'Orders' },
   { to: '/reports', icon: BarChart3, label: 'Reports' },
+  { to: '/profile', icon: User, label: 'Profile' },
+  
 ];
 
 const BottomNav = () => {

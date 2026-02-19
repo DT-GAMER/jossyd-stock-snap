@@ -38,7 +38,6 @@ const Reports = () => {
       } else {
         data = await reportsApi.getMonthly();
       }
-      console.log('📊 Report data:', data);
       setReport(data);
     } catch (err: any) {
       toast({ 

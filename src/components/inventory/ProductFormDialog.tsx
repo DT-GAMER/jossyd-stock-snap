@@ -74,9 +74,7 @@ const ProductFormDialog = ({ open, onOpenChange, editingProduct, submitting, onS
   // Initialize form when dialog opens or editingProduct changes
   useEffect(() => {
     if (open && editingProduct) {
-      console.log('✏️ Editing product:', editingProduct);
 
-      // Transform media to include preview URLs
       const mediaWithPreviews = (editingProduct.media || []).map(m => ({
         ...m,
         previewUrl: m.url,
@@ -148,8 +146,6 @@ const ProductFormDialog = ({ open, onOpenChange, editingProduct, submitting, onS
       submitData.discount = form.discount;
     }
 
-    console.log('Submitting form:', { submitData, newFiles });
-
     onSubmit({
       ...submitData,
       newFiles
@@ -157,10 +153,10 @@ const ProductFormDialog = ({ open, onOpenChange, editingProduct, submitting, onS
   };
 
   const addMediaSlot = (type: 'image' | 'video') => {
-    if (form.media.length >= 2) {
+    if (form.media.length >= 3) {
       toast({
         title: 'Limit Reached',
-        description: 'Maximum 2 media files allowed',
+        description: 'Maximum 3 media files allowed',
         variant: 'destructive'
       });
       return;
@@ -174,17 +170,16 @@ const ProductFormDialog = ({ open, onOpenChange, editingProduct, submitting, onS
   };
 
   const handleFileSelect = (index: number, file: File) => {
-    // Check file size (max 5MB)
-    if (file.size > 5 * 1024 * 1024) {
+    // Check file size (max 10MB)
+    if (file.size > 10 * 1024 * 1024) {
       toast({
         title: 'File Too Large',
-        description: 'Maximum file size is 5MB',
+        description: 'Maximum file size is 10MB',
         variant: 'destructive'
       });
       return;
     }
 
-    console.log('File selected:', file.name);
     const previewUrl = URL.createObjectURL(file);
     const updated = [...form.media];
     updated[index] = {
@@ -249,7 +244,6 @@ const ProductFormDialog = ({ open, onOpenChange, editingProduct, submitting, onS
   };
 
   const handleImageError = (mediaId: string) => {
-    console.log('Image failed to load:', mediaId);
     setImageErrors(prev => ({ ...prev, [mediaId]: true }));
   };
 
@@ -367,7 +361,6 @@ const ProductFormDialog = ({ open, onOpenChange, editingProduct, submitting, onS
 
             <div className="space-y-4">
               {form.media.map((m, i) => {
-                console.log('Rendering media:', m.id, m.previewUrl, m.isExisting);
                 return (
                   <div key={m.id} className="border border-border rounded-xl p-3 space-y-3">
                     <div className="flex items-center gap-2">

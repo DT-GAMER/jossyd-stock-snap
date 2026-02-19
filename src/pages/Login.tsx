@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { LogIn, Eye, EyeOff } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import logo from "../components/inventory/JD_logo_no_text.png";
 
 const Login = () => {
   const [email, setEmail] = useState('');
@@ -37,7 +38,8 @@ const Login = () => {
       {/* Brand header */}
       <div className="text-center mb-8 animate-fade-in">
         <div className="w-20 h-20 rounded-2xl gradient-gold flex items-center justify-center mx-auto mb-4 shadow-lg">
-          <span className="text-3xl font-bold text-primary">JD</span>
+          {/* <span className="text-3xl font-bold text-primary">JD</span> */}
+          <img src={logo} alt="Jossy-Diva Logo" className="object-contain w-20 h-20" />
         </div>
         <h1 className="text-2xl font-bold text-primary-foreground">Jossy-Diva</h1>
         <p className="text-primary-foreground/70 text-sm mt-1">Collections Manager</p>

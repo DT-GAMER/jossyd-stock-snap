@@ -24,7 +24,6 @@ const SalesHistory = () => {
   const loadSales = async () => {
     try {
       const data = await salesApi.getAll();
-      console.log('📦 Sales data:', data);
       setSales(data || []);
     } catch (err: any) {
       toast({ title: 'Error', description: err.message, variant: 'destructive' });

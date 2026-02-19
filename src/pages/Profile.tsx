@@ -32,7 +32,6 @@ const Profile = () => {
   const loadProfile = async () => {
     try {
       const data = await profileApi.getProfile();
-      console.log('📦 Profile loaded:', data);
       setProfile(data);
       setFormData(data);
     } catch (err: any) {

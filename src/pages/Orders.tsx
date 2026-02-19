@@ -15,23 +15,24 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import type { LucideIcon } from 'lucide-react';
 
+// Updated statusConfig - removed 'paid' as it's no longer in backend
 const statusConfig: Record<string, { label: string; className: string; icon: LucideIcon }> = {
   pending: { label: 'Pending', className: 'bg-warning-light text-warning-foreground', icon: Clock },
-  paid: { label: 'Paid', className: 'bg-info-light text-info', icon: CreditCard },
   completed: { label: 'Completed', className: 'bg-success-light text-success', icon: CheckCircle2 },
   cancelled: { label: 'Cancelled', className: 'bg-destructive/10 text-destructive', icon: Ban },
 };
 
+// Updated statusFilters - removed 'paid'
 const statusFilters: { value: string; label: string }[] = [
   { value: 'all', label: 'All' },
   { value: 'pending', label: 'Pending' },
-  { value: 'paid', label: 'Paid' },
   { value: 'completed', label: 'Completed' },
   { value: 'cancelled', label: 'Cancelled' },
 ];
 
 const Orders = () => {
   const [orders, setOrders] = useState<Order[]>([]);
+  const [allOrders, setAllOrders] = useState<Order[]>([]); // Store all orders for client-side filtering
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -50,27 +51,23 @@ const Orders = () => {
   const { toast } = useToast();
 
   useEffect(() => {
-    loadOrders();
+    loadAllOrders();
   }, []);
 
-  const loadOrders = async () => {
+  const loadAllOrders = async () => {
     setLoading(true);
     try {
-      // Build filter params
+      // Only fetch with date filters, not status
       const params: any = {};
       
-      if (search) params.search = search;
-      if (statusFilter !== 'all') params.status = statusFilter;
       if (startDate) params.startDate = startDate;
       if (endDate) params.endDate = endDate;
       if (specificDate) params.date = specificDate;
       if (todayFilter) params.today = true;
       
-      console.log('📤 Loading orders with params:', params);
-      
       const data = await ordersApi.getAll(params);
-      console.log('📦 Loaded orders:', data);
-      setOrders(data);
+      setAllOrders(data);
+      setOrders(data); // Initially show all orders
     } catch (err: any) {
       toast({ title: 'Error', description: err.message, variant: 'destructive' });
     } finally {
@@ -78,8 +75,29 @@ const Orders = () => {
     }
   };
 
+  // Client-side filtering based on status and search
+  useEffect(() => {
+    let filtered = [...allOrders];
+    
+    // Apply status filter (client-side)
+    if (statusFilter !== 'all') {
+      filtered = filtered.filter(order => order.status === statusFilter);
+    }
+    
+    // Apply search filter (client-side)
+    if (search) {
+      const searchLower = search.toLowerCase();
+      filtered = filtered.filter(order => 
+        order.orderNumber.toLowerCase().includes(searchLower) ||
+        order.customerName.toLowerCase().includes(searchLower)
+      );
+    }
+    
+    setOrders(filtered);
+  }, [statusFilter, search, allOrders]);
+
   const handleApplyFilters = () => {
-    loadOrders();
+    loadAllOrders(); // Reload with new date filters
     setShowDateFilters(false);
   };
 
@@ -90,20 +108,19 @@ const Orders = () => {
     setEndDate('');
     setSpecificDate('');
     setTodayFilter(false);
-    
-    // Reload with no filters
-    setTimeout(() => loadOrders(), 100);
+    loadAllOrders(); // Reload with no date filters
   };
-
-  const filtered = orders; // Remove client-side filtering since we're using server-side
 
   const handleUpdateStatus = async (orderId: string, newStatus: OrderStatus) => {
     setUpdating(true);
     try {
       const updated = await ordersApi.updateStatus(orderId, newStatus);
-      console.log('📦 Updated order:', updated);
+      
+      // Update both states
+      setAllOrders(prev => prev.map(o => o.id === orderId ? updated : o));
       setOrders(prev => prev.map(o => o.id === orderId ? updated : o));
       setSelectedOrder(updated);
+      
       toast({
         title: 'Updated!',
         description: `Order marked as ${newStatus}`,
@@ -120,9 +137,13 @@ const Orders = () => {
     setUpdating(true);
     try {
       const updated = await ordersApi.updateStatus(selectedOrder.id, 'cancelled');
+      
+      // Update both states
+      setAllOrders(prev => prev.map(o => o.id === selectedOrder.id ? updated : o));
       setOrders(prev => prev.map(o => o.id === selectedOrder.id ? updated : o));
       setSelectedOrder(updated);
       setCancelDialogOpen(false);
+      
       toast({
         title: 'Order Cancelled',
         description: `Order ${selectedOrder.orderNumber} has been cancelled`,
@@ -164,7 +185,7 @@ const Orders = () => {
     }
   };
 
-  const pendingCount = orders.filter(o => o.status === 'pending').length;
+  const pendingCount = allOrders.filter(o => o.status === 'pending').length;
 
   // Helper function to normalize status
   const getNormalizedStatus = (status: string): string => {
@@ -174,7 +195,7 @@ const Orders = () => {
   return (
     <Layout
       title="Orders"
-      subtitle={`${orders.length} orders${pendingCount > 0 ? ` • ${pendingCount} pending` : ''}`}
+      subtitle={`${allOrders.length} orders${pendingCount > 0 ? ` • ${pendingCount} pending` : ''}`}
       headerRight={
         <Button
           variant="ghost"
@@ -194,7 +215,6 @@ const Orders = () => {
             placeholder="Search by order # or customer..."
             value={search}
             onChange={e => setSearch(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && loadOrders()}
             className="pl-10 h-11 rounded-xl"
           />
           {search && (
@@ -204,15 +224,12 @@ const Orders = () => {
           )}
         </div>
 
-        {/* Status Filter */}
+        {/* Status Filter - Client-side filtering */}
         <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
           {statusFilters.map(f => (
             <button
               key={f.value}
-              onClick={() => {
-                setStatusFilter(f.value);
-                setTimeout(() => loadOrders(), 100);
-              }}
+              onClick={() => setStatusFilter(f.value)}
               className={`px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all ${
                 statusFilter === f.value
                   ? 'bg-primary text-primary-foreground'
@@ -333,7 +350,7 @@ const Orders = () => {
           <Button
             variant="ghost"
             size="sm"
-            onClick={loadOrders}
+            onClick={loadAllOrders}
             className="text-muted-foreground"
           >
             <RefreshCw className="h-4 w-4 mr-2" />
@@ -357,14 +374,14 @@ const Orders = () => {
             </div>
           ))}
         </div>
-      ) : filtered.length === 0 ? (
+      ) : orders.length === 0 ? (
         <div className="text-center py-12">
           <Package className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
           <p className="text-muted-foreground font-medium">No orders found</p>
         </div>
       ) : (
         <div className="space-y-2">
-          {filtered.map((order, index) => {
+          {orders.map((order, index) => {
             const normalizedStatus = getNormalizedStatus(order.status);
             const config = statusConfig[normalizedStatus] || statusConfig.pending;
             const StatusIcon = config.icon;
@@ -408,7 +425,7 @@ const Orders = () => {
         </div>
       )}
 
-      {/* Order Detail Dialog */}
+      {/* Order Detail Dialog - Keep the same */}
       <Dialog open={!!selectedOrder} onOpenChange={() => setSelectedOrder(null)}>
         <DialogContent className="max-w-sm mx-auto rounded-2xl max-h-[90vh] overflow-y-auto">
           {selectedOrder && (() => {
@@ -474,11 +491,11 @@ const Orders = () => {
                   {normalizedStatus === 'pending' && (
                     <div className="space-y-2">
                       <Button
-                        onClick={() => handleUpdateStatus(selectedOrder.id, 'paid')}
+                        onClick={() => handleUpdateStatus(selectedOrder.id, 'completed')}
                         disabled={updating}
-                        className="w-full h-12 rounded-xl gradient-gold text-accent-foreground font-semibold hover:opacity-90"
+                        className="w-full h-12 rounded-xl bg-success text-success-foreground font-semibold hover:opacity-90"
                       >
-                        {updating ? 'Updating...' : '✅ Mark as Paid'}
+                        {updating ? 'Updating...' : '📦 Mark as Completed'}
                       </Button>
                       <Button
                         onClick={() => setCancelDialogOpen(true)}
@@ -492,29 +509,6 @@ const Orders = () => {
                     </div>
                   )}
 
-                  {normalizedStatus === 'paid' && (
-                    <div className="space-y-2">
-                      <Button
-                        onClick={() => handleUpdateStatus(selectedOrder.id, 'completed')}
-                        disabled={updating}
-                        className="w-full h-12 rounded-xl bg-success text-success-foreground font-semibold hover:opacity-90"
-                      >
-                        {updating ? 'Updating...' : '📦 Mark as Completed'}
-                      </Button>
-                      
-                      {/* Receipt Download Button */}
-                      <Button
-                        onClick={() => handleDownloadReceipt(selectedOrder.orderNumber)}
-                        disabled={downloading === selectedOrder.orderNumber}
-                        variant="outline"
-                        className="w-full h-12 rounded-xl border-info text-info hover:bg-info/10 font-semibold"
-                      >
-                        <Download className="h-4 w-4 mr-2" />
-                        {downloading === selectedOrder.orderNumber ? 'Downloading...' : 'Download Receipt'}
-                      </Button>
-                    </div>
-                  )}
-
                   {normalizedStatus === 'completed' && (
                     <div className="space-y-2">
                       <div className="bg-success-light rounded-xl p-4 text-center">
@@ -522,7 +516,7 @@ const Orders = () => {
                         <p className="text-sm font-medium text-success-foreground">Order Completed</p>
                       </div>
                       
-                      {/* Receipt Download Button for completed orders too */}
+                      {/* Receipt Download Button for completed orders */}
                       <Button
                         onClick={() => handleDownloadReceipt(selectedOrder.orderNumber)}
                         disabled={downloading === selectedOrder.orderNumber}

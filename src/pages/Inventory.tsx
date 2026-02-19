@@ -5,11 +5,7 @@ import { DEFAULT_CATEGORIES, type Product, type ProductFormData, type ProductCat
 import { Plus, Search, Edit2, Trash2, X, Package, Image, Film, Eye, EyeOff, Percent, Tag } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
 import ProductFormDialog from '@/components/inventory/ProductFormDialog';
 
@@ -43,7 +39,6 @@ const Inventory = () => {
   const filtered = products.filter(p => {
     const matchesSearch = p.name.toLowerCase().includes(search.toLowerCase());
 
-    // Convert both to lowercase for comparison
     const productCategory = p.category?.toLowerCase();
     const filterCategory = categoryFilter.toLowerCase();
 
@@ -71,13 +66,10 @@ const Inventory = () => {
     setSubmitting(true);
     try {
       if (editingProduct) {
-        console.log('🔄 Updating product:', editingProduct.id);
-        console.log('📝 With data:', form);
 
         await productsApi.update(editingProduct.id, form, editingProduct);
         toast({ title: 'Updated!', description: `${form.name} has been updated` });
       } else {
-        console.log('🆕 Creating new product');
         await productsApi.create(form);
         toast({ title: 'Added!', description: `${form.name} has been added to inventory` });
       }

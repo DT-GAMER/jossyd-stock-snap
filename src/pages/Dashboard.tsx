@@ -52,7 +52,6 @@ const Dashboard = () => {
   const loadStats = async () => {
     try {
       const data = await dashboardApi.getStats();
-      console.log('📊 Dashboard stats:', data);
       setStats(data);
     } catch (err: any) {
       toast({ title: 'Error', description: err.message, variant: 'destructive' });

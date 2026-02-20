@@ -2,11 +2,12 @@ import { useState, useEffect } from 'react';
 import Layout from '@/components/Layout';
 import { reportsApi, salesApi, formatCurrency } from '@/lib/api';
 import type { ReportData, Period } from '@/types';
-import { BarChart3, TrendingUp, DollarSign, ShoppingBag, Clock, Download, Calendar } from 'lucide-react';
+import { BarChart3, TrendingUp, ShoppingBag, Clock, Download, Calendar } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { DEFAULT_CATEGORIES } from '@/types';
+import { FaNairaSign } from 'react-icons/fa6';
 
 const Reports = () => {
   const [period, setPeriod] = useState<Period>('daily');
@@ -177,7 +178,7 @@ const Reports = () => {
           {/* Summary Cards */}
           <div className="grid grid-cols-3 gap-3">
             <div className="bg-card rounded-2xl p-3 shadow-card text-center">
-              <DollarSign className="h-5 w-5 text-success mx-auto mb-1" />
+              <FaNairaSign className="h-5 w-5 text-success mx-auto mb-1" />
               <p className="text-[10px] text-muted-foreground font-medium uppercase">Revenue</p>
               <p className="text-sm font-bold text-foreground mt-0.5">{formatCurrency(report.revenue)}</p>
             </div>

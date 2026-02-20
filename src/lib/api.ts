@@ -68,12 +68,6 @@ const apiRequest = async <T>(
   return result.data !== undefined ? result.data as T : result as T;
 };
 
-
-
-let nextProductId = 11;
-let nextSaleId = 6;
-
-
 // Auth API
 export const authApi = {
   login: async (credentials: LoginCredentials): Promise<AuthResponse> => {

@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import Layout from '@/components/Layout';
 import { productsApi, formatCurrency, getDiscountedPrice } from '@/lib/api';
-import { DEFAULT_CATEGORIES, type Product, type ProductFormData, type ProductCategory, type ProductMedia, type ProductDiscount } from '@/types';
-import { Plus, Search, Edit2, Trash2, X, Package, Image, Film, Eye, EyeOff, Percent, Tag } from 'lucide-react';
+import { type Product, type ProductFormData } from '@/types';
+import { Plus, Search, Edit2, Trash2, X, Package, Eye } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
@@ -11,7 +11,9 @@ import ProductFormDialog from '@/components/inventory/ProductFormDialog';
 
 const Inventory = () => {
   const [products, setProducts] = useState<Product[]>([]);
+  const [categories, setCategories] = useState<{ value: string; label: string; icon: string }[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingCategories, setLoadingCategories] = useState(true);
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -22,17 +24,26 @@ const Inventory = () => {
   const { toast } = useToast();
 
   useEffect(() => {
-    loadProducts();
+    loadData();
   }, []);
 
-  const loadProducts = async () => {
+  const loadData = async () => {
+    setLoading(true);
+    setLoadingCategories(true);
     try {
-      const data = await productsApi.getAll();
-      setProducts(data);
+      // Load both products and categories in parallel
+      const [productsData, categoriesData] = await Promise.all([
+        productsApi.getAll(),
+        productsApi.getCategories()
+      ]);
+      
+      setProducts(productsData);
+      setCategories(categoriesData);
     } catch (err: any) {
       toast({ title: 'Error', description: err.message, variant: 'destructive' });
     } finally {
       setLoading(false);
+      setLoadingCategories(false);
     }
   };
 
@@ -66,7 +77,6 @@ const Inventory = () => {
     setSubmitting(true);
     try {
       if (editingProduct) {
-
         await productsApi.update(editingProduct.id, form, editingProduct);
         toast({ title: 'Updated!', description: `${form.name} has been updated` });
       } else {
@@ -74,7 +84,7 @@ const Inventory = () => {
         toast({ title: 'Added!', description: `${form.name} has been added to inventory` });
       }
       setDialogOpen(false);
-      loadProducts();
+      loadData(); // Reload both products and categories
     } catch (err: any) {
       console.error('❌ Submit error:', err);
       toast({
@@ -93,14 +103,20 @@ const Inventory = () => {
       await productsApi.delete(deletingProduct.id);
       toast({ title: 'Deleted', description: `${deletingProduct.name} has been removed` });
       setDeleteDialogOpen(false);
-      loadProducts();
+      loadData(); // Reload products after deletion
     } catch (err: any) {
       toast({ title: 'Error', description: err.message, variant: 'destructive' });
     }
   };
 
   const getCategoryEmoji = (category: string) => {
-    return DEFAULT_CATEGORIES.find(c => c.value === category)?.icon || '📦';
+    const found = categories.find(c => c.value === category);
+    return found?.icon || '📦';
+  };
+
+  const getCategoryLabel = (category: string) => {
+    const found = categories.find(c => c.value === category);
+    return found?.label || category;
   };
 
   return (
@@ -131,28 +147,41 @@ const Inventory = () => {
           )}
         </div>
 
+        {/* Category Filter - Dynamically loaded from backend */}
         <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
           <button
             onClick={() => setCategoryFilter('all')}
-            className={`px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all ${categoryFilter === 'all'
-              ? 'bg-primary text-primary-foreground'
-              : 'bg-secondary text-secondary-foreground'
-              }`}
+            className={`px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all flex-shrink-0 ${
+              categoryFilter === 'all'
+                ? 'bg-primary text-primary-foreground'
+                : 'bg-secondary text-secondary-foreground'
+            }`}
           >
             All
           </button>
-          {DEFAULT_CATEGORIES.map(cat => (
-            <button
-              key={cat.value}
-              onClick={() => setCategoryFilter(cat.value)}
-              className={`px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all ${categoryFilter === cat.value
-                ? 'bg-primary text-primary-foreground'
-                : 'bg-secondary text-secondary-foreground'
+          
+          {loadingCategories ? (
+            // Show skeleton loaders while categories are loading
+            <>
+              <div className="h-8 w-16 bg-muted rounded-full animate-pulse flex-shrink-0" />
+              <div className="h-8 w-20 bg-muted rounded-full animate-pulse flex-shrink-0" />
+              <div className="h-8 w-24 bg-muted rounded-full animate-pulse flex-shrink-0" />
+            </>
+          ) : (
+            categories.map(cat => (
+              <button
+                key={cat.value}
+                onClick={() => setCategoryFilter(cat.value)}
+                className={`px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all flex-shrink-0 ${
+                  categoryFilter === cat.value
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-secondary text-secondary-foreground'
                 }`}
-            >
-              {cat.icon} {cat.label}
-            </button>
-          ))}
+              >
+                {cat.icon} {cat.label}
+              </button>
+            ))
+          )}
         </div>
       </div>
 
@@ -199,7 +228,9 @@ const Inventory = () => {
                       )}
                     </div>
                     <div className="flex items-center gap-2 mt-0.5">
-                      <span className="text-xs text-muted-foreground capitalize">{product.category}</span>
+                      <span className="text-xs text-muted-foreground capitalize">
+                        {getCategoryLabel(product.category)}
+                      </span>
                       <span className="text-xs text-muted-foreground">•</span>
                       <span className={`text-xs font-semibold ${product.quantity <= 5 ? 'text-warning' : 'text-success'}`}>
                         {product.quantity} in stock

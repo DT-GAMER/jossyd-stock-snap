@@ -356,7 +356,7 @@ const ProductFormDialog = ({ open, onOpenChange, editingProduct, submitting, onS
           <div className="space-y-2">
             <Label className="flex items-center gap-1.5">
               <Image className="h-3.5 w-3.5" />
-              Media ({form.media.length}/2)
+              Media ({form.media.length}/3)
             </Label>
 
             <div className="space-y-4">

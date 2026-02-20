@@ -18,7 +18,7 @@ import type { LucideIcon } from 'lucide-react';
 // Updated statusConfig - removed 'paid' as it's no longer in backend
 const statusConfig: Record<string, { label: string; className: string; icon: LucideIcon }> = {
   pending: { label: 'Pending', className: 'bg-warning-light text-warning-foreground', icon: Clock },
-  completed: { label: 'Completed', className: 'bg-success-light text-success', icon: CheckCircle2 },
+  paid: { label: 'Paid', className: 'bg-success-light text-success', icon: CheckCircle2 },
   cancelled: { label: 'Cancelled', className: 'bg-destructive/10 text-destructive', icon: Ban },
 };
 
@@ -26,7 +26,7 @@ const statusConfig: Record<string, { label: string; className: string; icon: Luc
 const statusFilters: { value: string; label: string }[] = [
   { value: 'all', label: 'All' },
   { value: 'pending', label: 'Pending' },
-  { value: 'completed', label: 'Completed' },
+  { value: 'paid', label: 'Paid' },
   { value: 'cancelled', label: 'Cancelled' },
 ];
 
@@ -491,11 +491,11 @@ const Orders = () => {
                   {normalizedStatus === 'pending' && (
                     <div className="space-y-2">
                       <Button
-                        onClick={() => handleUpdateStatus(selectedOrder.id, 'completed')}
+                        onClick={() => handleUpdateStatus(selectedOrder.id, 'paid')}
                         disabled={updating}
                         className="w-full h-12 rounded-xl bg-success text-success-foreground font-semibold hover:opacity-90"
                       >
-                        {updating ? 'Updating...' : '📦 Mark as Completed'}
+                        {updating ? 'Updating...' : '📦 Mark as Paid'}
                       </Button>
                       <Button
                         onClick={() => setCancelDialogOpen(true)}
@@ -509,14 +509,14 @@ const Orders = () => {
                     </div>
                   )}
 
-                  {normalizedStatus === 'completed' && (
+                  {normalizedStatus === 'paid' && (
                     <div className="space-y-2">
                       <div className="bg-success-light rounded-xl p-4 text-center">
                         <CheckCircle2 className="h-8 w-8 text-success mx-auto mb-2" />
-                        <p className="text-sm font-medium text-success-foreground">Order Completed</p>
+                        <p className="text-sm font-medium text-success-foreground">Order Paid</p>
                       </div>
                       
-                      {/* Receipt Download Button for completed orders */}
+                      {/* Receipt Download Button for paid orders */}
                       <Button
                         onClick={() => handleDownloadReceipt(selectedOrder.orderNumber)}
                         disabled={downloading === selectedOrder.orderNumber}

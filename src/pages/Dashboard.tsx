@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Layout from '@/components/Layout';
-import { dashboardApi, authApi, formatCurrency } from '@/lib/api';
-import type { DashboardStats } from '@/types';
-import { TrendingUp, DollarSign, ShoppingBag, AlertTriangle, LogOut, Package, ClipboardList, Clock } from 'lucide-react';
+import { dashboardApi, authApi, formatCurrency, productsApi } from '@/lib/api';
+import type { DashboardStats, Product } from '@/types';
+import { TrendingUp, ShoppingBag, AlertTriangle, LogOut, Package, ClipboardList, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { FaNairaSign } from 'react-icons/fa6';
+import ProductFormDialog from '@/components/inventory/ProductFormDialog';
 
 const StatCard = ({ 
   icon: Icon, 
@@ -41,9 +43,55 @@ const Dashboard = () => {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [showPendingOrders, setShowPendingOrders] = useState(false);
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [loadingProduct, setLoadingProduct] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
   const user = authApi.getUser();
+
+  const openEditDialog = async (item: any) => {
+    setLoadingProduct(true);
+    try {
+      // Fetch the full product data using the ID
+      const fullProduct = await productsApi.getById(item.id);
+      setEditingProduct(fullProduct);
+      setDialogOpen(true);
+    } catch (err: any) {
+      toast({ 
+        title: 'Error', 
+        description: err.message || 'Failed to load product details', 
+        variant: 'destructive' 
+      });
+    } finally {
+      setLoadingProduct(false);
+    }
+  };
+
+  const handleSubmit = async (form: any) => {
+    if (!editingProduct) return;
+    
+    setSubmitting(true);
+    try {
+      await productsApi.update(editingProduct.id, form, editingProduct);
+      toast({ title: 'Updated!', description: `${form.name} has been updated` });
+      setDialogOpen(false);
+      
+      // Reload dashboard stats to reflect changes
+      const data = await dashboardApi.getStats();
+      setStats(data);
+    } catch (err: any) {
+      console.error('❌ Submit error:', err);
+      toast({
+        title: 'Error',
+        description: err.message || 'Failed to update product',
+        variant: 'destructive'
+      });
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   useEffect(() => {
     loadStats();
@@ -87,7 +135,7 @@ const Dashboard = () => {
 
   return (
     <Layout
-      title={`Hi, ${user?.name || 'Boss'} 👋`}
+      title={`Welcome 👋`}
       subtitle="Jossy-Diva Collections"
       headerRight={
         <Button
@@ -107,7 +155,7 @@ const Dashboard = () => {
         </h2>
         <div className="grid grid-cols-2 gap-3">
           <StatCard
-            icon={DollarSign}
+            icon={FaNairaSign}
             label="Total Sales"
             value={formatCurrency(stats?.today.totalSalesAmount || 0)}
             iconBg="bg-success-light text-success"
@@ -153,7 +201,7 @@ const Dashboard = () => {
         </div>
       )}
 
-      {/* Low Stock Alert */}
+      {/* Low Stock Alert - Clickable items */}
       {stats?.lowStock && stats.lowStock.length > 0 && (
         <div id="low-stock-section" className="animate-fade-in mb-6">
           <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">
@@ -163,7 +211,10 @@ const Dashboard = () => {
             {stats.lowStock.map(item => (
               <div
                 key={item.id}
-                className="bg-card rounded-xl p-3 shadow-card flex items-center justify-between hover:shadow-card-hover transition-shadow"
+                className={`bg-card rounded-xl p-3 shadow-card flex items-center justify-between transition-all cursor-pointer hover:shadow-card-hover hover:bg-secondary/50 ${
+                  loadingProduct ? 'opacity-50 pointer-events-none' : ''
+                }`}
+                onClick={() => openEditDialog(item)}
               >
                 <div className="flex items-center gap-3">
                   <div className="p-2 rounded-lg bg-warning-light">
@@ -247,6 +298,25 @@ const Dashboard = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Edit Product Dialog */}
+      <ProductFormDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        editingProduct={editingProduct}
+        submitting={submitting}
+        onSubmit={handleSubmit}
+      />
+
+      {/* Loading overlay for product fetch */}
+      {loadingProduct && (
+        <div className="fixed inset-0 bg-black/20 flex items-center justify-center z-50">
+          <div className="bg-card rounded-2xl p-4 shadow-lg flex items-center gap-3">
+            <div className="animate-spin h-5 w-5 border-2 border-primary border-t-transparent rounded-full" />
+            <p className="text-sm">Loading product details...</p>
+          </div>
+        </div>
+      )}
     </Layout>
   );
 };

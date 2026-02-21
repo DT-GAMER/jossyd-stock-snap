@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { formatCurrency } from '@/lib/api';
 import { productsApi } from '@/lib/api';
-import { DEFAULT_CATEGORIES, type Product, type ProductFormData, type ProductCategory, type ProductMedia, type ProductDiscount } from '@/types';
-import { Image, Film, X, Percent, Tag, Trash2, Loader2 } from 'lucide-react';
+import { DEFAULT_CATEGORIES, type Product, type ProductFormData, type ProductCategory, type ProductMedia } from '@/types';
+import { Image, Film, X, Percent, Tag, Trash2, Loader2, Calendar } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -18,9 +18,15 @@ interface MediaFile extends ProductMedia {
   isExisting?: boolean;
 }
 
+// Update the interface to include discount fields at root level
 interface ProductFormDataWithFiles extends Omit<ProductFormData, 'media'> {
   media: MediaFile[];
   newFiles?: { file: File; type: string }[];
+  discountActive?: boolean;
+  discountType?: 'PERCENTAGE' | 'FIXED';
+  discountValue?: number;
+  discountStartAt?: string;
+  discountEndAt?: string;
 }
 
 const emptyForm: ProductFormDataWithFiles = {
@@ -32,6 +38,11 @@ const emptyForm: ProductFormDataWithFiles = {
   quantity: 0,
   media: [],
   visibleOnWebsite: false,
+  discountActive: false,
+  discountType: undefined,
+  discountValue: undefined,
+  discountStartAt: undefined,
+  discountEndAt: undefined,
 };
 
 interface ProductFormDialogProps {
@@ -39,7 +50,14 @@ interface ProductFormDialogProps {
   onOpenChange: (open: boolean) => void;
   editingProduct: Product | null;
   submitting: boolean;
-  onSubmit: (form: ProductFormData & { newFiles?: { file: File; type: string }[] }) => void;
+  onSubmit: (form: ProductFormData & {
+    newFiles?: { file: File; type: string }[];
+    discountActive?: boolean;
+    discountType?: string;
+    discountValue?: number;
+    discountStartAt?: string;
+    discountEndAt?: string;
+  }) => void;
 }
 
 const ProductFormDialog = ({ open, onOpenChange, editingProduct, submitting, onSubmit }: ProductFormDialogProps) => {
@@ -71,33 +89,72 @@ const ProductFormDialog = ({ open, onOpenChange, editingProduct, submitting, onS
     }
   };
 
+  // Helper function to convert ISO datetime to datetime-local format
+  const isoToDatetimeLocal = (isoString: string | null | undefined): string => {
+    if (!isoString) return '';
+    try {
+      const date = new Date(isoString);
+      if (isNaN(date.getTime())) return '';
+
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      const hours = String(date.getHours()).padStart(2, '0');
+      const minutes = String(date.getMinutes()).padStart(2, '0');
+
+      return `${year}-${month}-${day}T${hours}:${minutes}`;
+    } catch (e) {
+      console.error('Error formatting date:', e);
+      return '';
+    }
+  };
+
+  // Helper function to convert datetime-local to ISO string
+  const datetimeLocalToIso = (datetimeLocal: string): string => {
+    if (!datetimeLocal) return '';
+    try {
+      return new Date(datetimeLocal).toISOString();
+    } catch (e) {
+      console.error('Error converting to ISO:', e);
+      return '';
+    }
+  };
+
   // Initialize form when dialog opens or editingProduct changes
+  // In the initialization useEffect, update how hasDiscountFields is determined
   useEffect(() => {
     if (open && editingProduct) {
-
       const mediaWithPreviews = (editingProduct.media || []).map(m => ({
         ...m,
         previewUrl: m.url,
         isExisting: true,
       }));
 
+      // Check if product has discount fields from backend
+      const hasDiscountFields =
+        editingProduct.discountType &&
+        editingProduct.discountValue &&
+        editingProduct.discountValue > 0;
+
       setForm({
         name: editingProduct.name || '',
         description: editingProduct.description || '',
-        category: editingProduct.category || '',
+        category: editingProduct.category?.toUpperCase() || '',
         costPrice: editingProduct.costPrice || 0,
         sellingPrice: editingProduct.sellingPrice || 0,
         quantity: editingProduct.quantity || 0,
         media: mediaWithPreviews,
         visibleOnWebsite: editingProduct.visibleOnWebsite || false,
-        discount: editingProduct.discount,
+        discountActive: hasDiscountFields, // Set this based on whether discount exists
+        discountType: editingProduct.discountType || undefined,
+        discountValue: editingProduct.discountValue || undefined,
+        discountStartAt: editingProduct.discountStartAt || undefined,
+        discountEndAt: editingProduct.discountEndAt || undefined,
       });
 
-      setHasDiscount(!!editingProduct.discount);
       setImageErrors({});
     } else if (open && !editingProduct) {
       setForm(emptyForm);
-      setHasDiscount(false);
       setImageErrors({});
     }
   }, [open, editingProduct]);
@@ -131,7 +188,7 @@ const ProductFormDialog = ({ open, onOpenChange, editingProduct, submitting, onS
         type: m.type
       }));
 
-    const submitData: ProductFormData = {
+    const submitData: any = {
       name: form.name,
       description: form.description,
       category: form.category,
@@ -140,10 +197,16 @@ const ProductFormDialog = ({ open, onOpenChange, editingProduct, submitting, onS
       quantity: form.quantity,
       media: existingMedia,
       visibleOnWebsite: form.visibleOnWebsite,
+      discountActive: form.discountActive,
     };
 
-    if (hasDiscount && form.discount) {
-      submitData.discount = form.discount;
+    if (form.discountActive) {
+      submitData.discountType = form.discountType;
+      submitData.discountValue = form.discountValue;
+
+      // Add discount dates if provided
+      submitData.discountStartAt = form.discountStartAt || '';
+      submitData.discountEndAt = form.discountEndAt || '';
     }
 
     onSubmit({
@@ -206,10 +269,8 @@ const ProductFormDialog = ({ open, onOpenChange, editingProduct, submitting, onS
 
     setDeletingMedia(mediaId);
     try {
-      // Call API to delete the media immediately
       await productsApi.deleteMedia(mediaId);
 
-      // Remove from local state
       const updatedMedia = form.media.filter((_, i) => i !== index);
       setForm({ ...form, media: updatedMedia });
 
@@ -231,12 +292,10 @@ const ProductFormDialog = ({ open, onOpenChange, editingProduct, submitting, onS
   const removeNewMedia = (index: number) => {
     const media = form.media[index];
 
-    // Clean up object URL if it's a blob
     if (media.previewUrl && media.previewUrl.startsWith('blob:')) {
       URL.revokeObjectURL(media.previewUrl);
     }
 
-    // Remove from state
     setForm({
       ...form,
       media: form.media.filter((_, i) => i !== index)
@@ -245,6 +304,16 @@ const ProductFormDialog = ({ open, onOpenChange, editingProduct, submitting, onS
 
   const handleImageError = (mediaId: string) => {
     setImageErrors(prev => ({ ...prev, [mediaId]: true }));
+  };
+
+  // Format datetime for display in preview
+  const formatDateTime = (datetime: string) => {
+    if (!datetime) return '';
+    try {
+      return new Date(datetime).toLocaleString();
+    } catch {
+      return datetime;
+    }
   };
 
   return (
@@ -436,7 +505,7 @@ const ProductFormDialog = ({ open, onOpenChange, editingProduct, submitting, onS
               })}
 
               {/* Add Media Buttons */}
-              {form.media.length < 2 && (
+              {form.media.length < 3 && (
                 <div className="flex gap-2">
                   <Button
                     type="button"
@@ -487,54 +556,123 @@ const ProductFormDialog = ({ open, onOpenChange, editingProduct, submitting, onS
                 Add Discount (Website)
               </Label>
               <Switch
-                checked={hasDiscount}
+                checked={form.discountActive}
                 onCheckedChange={v => {
-                  setHasDiscount(v);
-                  if (v && !form.discount) {
-                    setForm({ ...form, discount: { type: 'percentage', value: 0 } });
+                  setForm({ ...form, discountActive: v });
+                  if (v && !form.discountValue) {
+                    setForm({
+                      ...form,
+                      discountActive: v,
+                      ...(v && !form.discountValue ? {
+                        discountType: 'PERCENTAGE',
+                        discountValue: 0,
+                        discountStartAt: undefined,
+                        discountEndAt: undefined
+                      } : {})
+                    });
                   }
                 }}
               />
             </div>
-            {hasDiscount && (
-              <div className="grid grid-cols-2 gap-3 animate-fade-in">
-                <div className="space-y-2">
-                  <Label className="text-xs">Discount Type</Label>
-                  <Select
-                    value={form.discount?.type || 'percentage'}
-                    onValueChange={v => setForm({ ...form, discount: { type: v as 'percentage' | 'fixed', value: form.discount?.value || 0 } })}
-                  >
-                    <SelectTrigger className="rounded-xl h-9 text-xs">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="percentage">Percentage (%)</SelectItem>
-                      <SelectItem value="fixed">Fixed (₦)</SelectItem>
-                    </SelectContent>
-                  </Select>
+
+            {form.discountActive && (
+              <div className="space-y-3 animate-fade-in">
+                {/* Discount Type and Value */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label className="text-xs">Discount Type</Label>
+                    <Select
+                      value={form.discountType || 'PERCENTAGE'}
+                      onValueChange={v => setForm({
+                        ...form,
+                        discountType: v as 'PERCENTAGE' | 'FIXED'
+                      })}
+                    >
+                      <SelectTrigger className="rounded-xl h-9 text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="PERCENTAGE">Percentage (%)</SelectItem>
+                        <SelectItem value="FIXED">Fixed (₦)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs">Value</Label>
+                    <Input
+                      type="number"
+                      value={form.discountValue || ''}
+                      onChange={e => setForm({
+                        ...form,
+                        discountValue: Number(e.target.value)
+                      })}
+                      placeholder="0"
+                      min={0}
+                      max={form.discountType === 'PERCENTAGE' ? 100 : form.sellingPrice}
+                      className="rounded-xl h-9 text-xs"
+                    />
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label className="text-xs">Value</Label>
-                  <Input
-                    type="number"
-                    value={form.discount?.value || ''}
-                    onChange={e => setForm({ ...form, discount: { type: form.discount?.type || 'percentage', value: Number(e.target.value) } })}
-                    placeholder="0"
-                    min={0}
-                    max={form.discount?.type === 'percentage' ? 100 : form.sellingPrice}
-                    className="rounded-xl h-9 text-xs"
-                  />
+
+                {/* Discount Start and End Datetime - Optional */}
+                <div className="space-y-3">
+                  <div className="space-y-2">
+                    <Label className="text-xs flex items-center gap-1">
+                      <Calendar className="h-3 w-3" />
+                      Start Date/Time (Optional)
+                    </Label>
+                    <Input
+                      type="datetime-local"
+                      value={form.discountStartAt ? isoToDatetimeLocal(form.discountStartAt) : ''}
+                      onChange={e => {
+                        const datetime = e.target.value;
+                        setForm({
+                          ...form,
+                          discountStartAt: datetime ? datetimeLocalToIso(datetime) : undefined
+                        });
+                      }}
+                      className="rounded-xl h-9 text-xs"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs flex items-center gap-1">
+                      <Calendar className="h-3 w-3" />
+                      End Date/Time (Optional)
+                    </Label>
+                    <Input
+                      type="datetime-local"
+                      value={form.discountEndAt ? isoToDatetimeLocal(form.discountEndAt) : ''}
+                      min={form.discountStartAt ? isoToDatetimeLocal(form.discountStartAt) : ''}
+                      onChange={e => {
+                        const datetime = e.target.value;
+                        setForm({
+                          ...form,
+                          discountEndAt: datetime ? datetimeLocalToIso(datetime) : undefined
+                        });
+                      }}
+                      className="rounded-xl h-9 text-xs"
+                    />
+                  </div>
                 </div>
-                {form.discount && form.discount.value > 0 && form.sellingPrice > 0 && (
-                  <div className="col-span-2 bg-info-light rounded-lg p-2 text-center">
+
+                {/* Website Price Preview */}
+                {form.discountType && form.discountValue && form.discountValue > 0 && form.sellingPrice > 0 && (
+                  <div className="bg-info-light rounded-lg p-2 text-center">
                     <p className="text-xs text-muted-foreground">Website price</p>
                     <p className="text-sm font-bold text-info">
                       {formatCurrency(
-                        form.discount.type === 'percentage'
-                          ? Math.round(form.sellingPrice * (1 - form.discount.value / 100))
-                          : form.sellingPrice - form.discount.value
+                        form.discountType === 'PERCENTAGE'
+                          ? Math.round(form.sellingPrice * (1 - form.discountValue / 100))
+                          : form.sellingPrice - form.discountValue
                       )}
                     </p>
+                    {(form.discountStartAt || form.discountEndAt) && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {form.discountStartAt && `From ${formatDateTime(form.discountStartAt)}`}
+                        {form.discountStartAt && form.discountEndAt && ' to '}
+                        {form.discountEndAt && formatDateTime(form.discountEndAt)}
+                      </p>
+                    )}
                   </div>
                 )}
               </div>

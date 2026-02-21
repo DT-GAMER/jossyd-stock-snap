@@ -6,22 +6,44 @@ export interface ProductMedia {
   file?: File; // For new uploads
 }
 
-export interface ProductDiscount {
-  type: 'percentage' | 'fixed';
-  value: number;
-}
-
 export interface Product {
   id: string;
   name: string;
   description: string;
-  category: ProductCategory;
+  category: string;
   costPrice: number;
   sellingPrice: number;
   quantity: number;
   media: ProductMedia[];
   visibleOnWebsite: boolean;
-  discount?: ProductDiscount;
+  discountActive?: boolean;
+  discountType?: 'PERCENTAGE' | 'FIXED' | null;
+  discountValue?: number | null;
+  discountStartAt?: string | null;
+  discountEndAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// API response type (for reference)
+export interface ProductApiResponse {
+  id: string;
+  name: string;
+  description: string;
+  category: string;
+  costPrice: number;
+  sellingPrice: number;
+  discountType?: 'PERCENTAGE' | 'FIXED' | null;
+  discountValue?: number | null;
+  discountStartAt?: string | null;  // ISO datetime
+  discountEndAt?: string | null;    // ISO datetime
+  quantity: number;
+  media: Array<{
+    id: string;
+    url: string;
+    type: string;
+  }>;
+  visibleOnWebsite: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -104,21 +126,6 @@ export interface PendingOrderItem {
   createdAt: string;
 }
 
-export interface Product {
-  id: string;
-  name: string;
-  description: string;
-  category: ProductCategory;
-  costPrice: number;
-  sellingPrice: number;
-  quantity: number;
-  media: ProductMedia[];
-  visibleOnWebsite: boolean;
-  discount?: ProductDiscount;
-  createdAt: string;
-  updatedAt: string;
-}
-
 export interface LoginCredentials {
   email: string;
   password: string;
@@ -143,7 +150,10 @@ export interface ProductFormData {
   quantity: number;
   media: ProductMedia[];  // Now includes optional file property
   visibleOnWebsite: boolean;
-  discount?: ProductDiscount;
+  discountType?: 'PERCENTAGE' | 'FIXED' | null;
+  discountValue?: number | null;
+  discountStartAt?: string | null;
+  discountEndAt?: string | null;
 }
 
 // API request types - these match what the backend expects

@@ -84,7 +84,7 @@ const Inventory = () => {
         toast({ title: 'Added!', description: `${form.name} has been added to inventory` });
       }
       setDialogOpen(false);
-      loadData(); // Reload both products and categories
+      loadData();
     } catch (err: any) {
       console.error('❌ Submit error:', err);
       toast({
